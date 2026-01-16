@@ -8,27 +8,26 @@ to BreakAgent, ExploitAgent, and ChaosAgent based on:
 - Available time budget
 """
 
+import contextlib
 import json
-import re
 import uuid
 from typing import Any
 
-from ..providers import Message, ModelTier
-from ..store import BeadType
 from ..attack_plan import (
-    AttackPlan,
-    Attack,
-    AttackVector,
-    AttackPriority,
     AgentType,
+    Attack,
+    AttackPlan,
+    AttackPriority,
+    AttackSurface,
+    AttackVector,
+    FileRiskProfile,
+    ParallelGroup,
     RiskLevel,
     SkipReason,
-    ParallelGroup,
-    FileRiskProfile,
-    AttackSurface,
 )
+from ..providers import Message, ModelTier
+from ..store import BeadType
 from .base import Agent, AgentContext, AgentOutput
-
 
 CHAOS_ORCHESTRATOR_SYSTEM_PROMPT = """You are a red team coordinator planning adversarial attacks against code changes.
 
@@ -254,7 +253,7 @@ class ChaosOrchestrator(Agent):
             "## Constraints",
             "",
             f"- **Time budget:** {time_budget} seconds total",
-            f"- **Max parallel agents:** 3",
+            "- **Max parallel agents:** 3",
             "",
         ])
 
@@ -386,10 +385,8 @@ class ChaosOrchestrator(Agent):
         for f in data.get("files", []):
             agents = []
             for agent_name in f.get("recommended_agents", []):
-                try:
+                with contextlib.suppress(ValueError):
                     agents.append(AgentType(agent_name))
-                except ValueError:
-                    pass
 
             files.append(
                 FileRiskProfile(

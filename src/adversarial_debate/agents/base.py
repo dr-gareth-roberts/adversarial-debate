@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from ..providers import LLMProvider, Message, ModelTier
-from ..store import BeadStore, Bead, BeadType
+from ..store import Bead, BeadStore, BeadType
 
 
 @dataclass

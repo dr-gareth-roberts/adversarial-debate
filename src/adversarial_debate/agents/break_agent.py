@@ -15,7 +15,6 @@ from ..providers import Message, ModelTier
 from ..store import BeadType
 from .base import Agent, AgentContext, AgentOutput
 
-
 BREAK_AGENT_SYSTEM_PROMPT = """You are a senior QA engineer and chaos engineer with expertise in finding edge cases and failure modes.
 
 Your job is to BREAK code. Not review it. Not improve it. BREAK it.
@@ -159,8 +158,8 @@ class BreakAgent(Agent):
 
         # Construct the user message
         user_message_parts = [
-            f"## Target Code",
-            f"",
+            "## Target Code",
+            "",
             f"**File:** `{file_path}`",
         ]
 
@@ -169,11 +168,11 @@ class BreakAgent(Agent):
 
         user_message_parts.extend([
             f"**Language:** {language}",
-            f"",
+            "",
             f"```{language}",
             target_code,
-            f"```",
-            f"",
+            "```",
+            "",
         ])
 
         # Add code context if available

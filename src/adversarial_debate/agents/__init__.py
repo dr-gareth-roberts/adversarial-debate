@@ -9,12 +9,12 @@ The adversarial debate system uses multiple specialized agents:
 - Arbiter: Consolidates findings with confidence scoring
 """
 
+from .arbiter import Arbiter
 from .base import Agent, AgentContext, AgentOutput
-from .exploit_agent import ExploitAgent
 from .break_agent import BreakAgent
 from .chaos_agent import ChaosAgent
 from .chaos_orchestrator import ChaosOrchestrator
-from .arbiter import Arbiter
+from .exploit_agent import ExploitAgent
 
 __all__ = [
     "Agent",

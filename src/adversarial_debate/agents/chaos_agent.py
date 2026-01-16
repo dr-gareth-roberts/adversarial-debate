@@ -18,7 +18,6 @@ from ..providers import Message, ModelTier
 from ..store import BeadType
 from .base import Agent, AgentContext, AgentOutput
 
-
 CHAOS_AGENT_SYSTEM_PROMPT = """You are a chaos engineer designing experiments to test system resilience.
 
 Your job is to identify how code might fail under adverse conditions and design safe experiments to verify resilience.

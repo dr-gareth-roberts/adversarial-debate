@@ -1,0 +1,84 @@
+# Adversarial Debate - Docker Image
+#
+# Build:
+#   docker build -t adversarial-debate .
+#
+# Run:
+#   docker run -e ANTHROPIC_API_KEY=your-key adversarial-debate analyze exploit /code
+#
+# Mount code for analysis:
+#   docker run -v $(pwd):/code -e ANTHROPIC_API_KEY=your-key adversarial-debate analyze exploit /code
+
+# =============================================================================
+# Stage 1: Build stage
+# =============================================================================
+FROM python:3.11-slim AS builder
+
+# Set build-time variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy dependency files
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY src/ src/
+
+# Install the package
+RUN pip install --upgrade pip && \
+    pip install .
+
+# =============================================================================
+# Stage 2: Runtime stage
+# =============================================================================
+FROM python:3.11-slim AS runtime
+
+# Security labels
+LABEL org.opencontainers.image.title="Adversarial Debate" \
+      org.opencontainers.image.description="AI Red Team Security Testing Framework" \
+      org.opencontainers.image.version="0.1.0" \
+      org.opencontainers.image.source="https://github.com/dr-gareth-roberts/adversarial-debate" \
+      org.opencontainers.image.licenses="MIT"
+
+# Set runtime environment
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1 \
+    PATH="/opt/venv/bin:$PATH"
+
+# Create non-root user for security
+RUN groupadd --gid 1000 adversarial && \
+    useradd --uid 1000 --gid adversarial --shell /bin/bash --create-home adversarial
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Create directories for code mounting and output
+RUN mkdir -p /code /output && \
+    chown -R adversarial:adversarial /code /output
+
+# Switch to non-root user
+USER adversarial
+
+# Set working directory
+WORKDIR /code
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD adversarial-debate --version || exit 1
+
+# Default entrypoint
+ENTRYPOINT ["adversarial-debate"]
+
+# Default command (show help)
+CMD ["--help"]

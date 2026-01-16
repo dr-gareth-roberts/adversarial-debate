@@ -1,13 +1,13 @@
 """Bead store implementation - append-only JSONL ledger for coordination."""
 
+import fcntl
 import json
-import os
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from collections.abc import Iterator
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterator
-import fcntl
+from typing import Any
 
 
 class BeadType(str, Enum):
@@ -254,10 +254,7 @@ class BeadStore:
 
         This is the primary "already done?" check before external actions.
         """
-        for bead in self.iter_all():
-            if bead.idempotency_key == key:
-                return True
-        return False
+        return any(bead.idempotency_key == key for bead in self.iter_all())
 
     def get_by_id(self, bead_id: str) -> Bead | None:
         """Get a bead by its ID."""
@@ -280,7 +277,7 @@ class BeadStore:
 
         Format: B-YYYYMMDD-HHMMSS-NNNNNN
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         date_part = now.strftime("%Y%m%d-%H%M%S")
         # Add microseconds for uniqueness
         micro_part = f"{now.microsecond:06d}"
@@ -289,4 +286,4 @@ class BeadStore:
     @staticmethod
     def now_iso() -> str:
         """Get current timestamp in ISO format."""
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.now(UTC).isoformat()

@@ -1,0 +1,78 @@
+name: Question
+description: Ask a question about using Adversarial Debate
+title: "[Question]: "
+labels: ["question"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about Adversarial Debate? We're happy to help!
+
+        **Before asking:**
+        - Check the [README](../README.md) for documentation
+        - Search existing issues for similar questions
+        - Review the [examples](../examples/) directory
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I have read the documentation
+          required: true
+        - label: I have searched existing issues for similar questions
+          required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      options:
+        - Getting Started / Installation
+        - Configuration
+        - Using Agents
+        - Understanding Results
+        - Integration / CI-CD
+        - Performance / Scaling
+        - Security
+        - Contributing
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know?
+      placeholder: |
+        How do I...?
+        What is the best way to...?
+        Can Adversarial Debate...?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant context that might help us answer your question
+      placeholder: |
+        I'm trying to [accomplish X]...
+        My setup is [describe environment]...
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Code (Optional)
+      description: If relevant, share code that relates to your question
+      render: python
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: What version are you using? (run `adversarial-debate --version`)
+      placeholder: "0.1.0"

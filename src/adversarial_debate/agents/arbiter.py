@@ -17,16 +17,15 @@ from ..providers import Message, ModelTier
 from ..store import BeadType
 from ..verdict import (
     ArbiterVerdict,
-    ValidatedFinding,
-    RejectedFinding,
-    RemediationTask,
-    VerdictDecision,
     ExploitationDifficulty,
-    RemediationEffort,
     FindingValidation,
+    RejectedFinding,
+    RemediationEffort,
+    RemediationTask,
+    ValidatedFinding,
+    VerdictDecision,
 )
 from .base import Agent, AgentContext, AgentOutput
-
 
 ARBITER_SYSTEM_PROMPT = """You are the Arbiter - the final judge of security and quality findings.
 
@@ -575,10 +574,7 @@ class Arbiter(Agent):
         high_count = sum(
             1 for i in verdict.blocking_issues if i.validated_severity == "HIGH"
         )
-        if high_count >= 3:
-            return True
-
-        return False
+        return high_count >= 3
 
     @staticmethod
     def create_ticket_summary(verdict: ArbiterVerdict) -> str:

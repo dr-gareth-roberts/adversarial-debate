@@ -1,46 +1,212 @@
-# Adversarial Debate
+<div align="center">
 
-AI Red Team Security Testing Framework using an adversarial agent mesh.
+# 🔴 Adversarial Debate
 
-## Overview
+### AI Red Team Security Testing Framework
 
-Adversarial Debate is a 5-phase red team system that uses multiple specialized AI agents to find security vulnerabilities and logic bugs in code. Each agent attacks from a different angle, and findings are consolidated with confidence scoring.
+**Find security vulnerabilities before attackers do.**
+
+[![CI](https://github.com/dr-gareth-roberts/adversarial-debate/actions/workflows/ci.yml/badge.svg)](https://github.com/dr-gareth-roberts/adversarial-debate/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Type Checked: mypy](https://img.shields.io/badge/type%20checked-mypy-blue.svg)](https://mypy-lang.org/)
+[![Security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://bandit.readthedocs.io/)
+
+[Getting Started](#-quick-start) •
+[Documentation](#-documentation) •
+[Examples](examples/) •
+[Contributing](CONTRIBUTING.md)
+
+</div>
+
+---
+
+## What is Adversarial Debate?
+
+Adversarial Debate is a **multi-agent AI security testing framework** that uses specialized agents to attack your code from different angles, then consolidates findings with confidence scoring.
+
+Think of it as having a team of security experts—each with different specializations—reviewing your code simultaneously.
 
 ```
-ChaosOrchestrator (strategy)
-        │
-        ├── ExploitAgent (OWASP Top 10 security)
-        ├── BreakAgent (logic bugs, edge cases)
-        └── ChaosAgent (resilience, failure modes)
-        │
-        ▼
-    Arbiter (consolidation + deduplication)
+                    ┌─────────────────────────────────────┐
+                    │        ChaosOrchestrator            │
+                    │    (Attack Strategy & Planning)     │
+                    └─────────────────┬───────────────────┘
+                                      │
+            ┌─────────────────────────┼─────────────────────────┐
+            │                         │                         │
+            ▼                         ▼                         ▼
+   ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+   │  ExploitAgent   │     │   BreakAgent    │     │   ChaosAgent    │
+   │                 │     │                 │     │                 │
+   │  OWASP Top 10   │     │   Logic Bugs    │     │   Resilience    │
+   │  SQL Injection  │     │   Edge Cases    │     │   Failure Modes │
+   │  Auth Bypass    │     │   Race Conds    │     │   Resource Bugs │
+   └────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+            │                       │                       │
+            └───────────────────────┼───────────────────────┘
+                                    │
+                                    ▼
+                    ┌─────────────────────────────────────┐
+                    │             Arbiter                  │
+                    │   Consolidation • Deduplication      │
+                    │   Confidence Scoring • Prioritization│
+                    └─────────────────────────────────────┘
 ```
 
-## Features
+## Key Features
 
-- **ExploitAgent**: Security vulnerabilities mapped to OWASP Top 10 and CWE
-- **BreakAgent**: Logic bugs, boundary conditions, state corruption
-- **ChaosAgent**: Failure handling, resource exhaustion, race conditions
-- **ChaosOrchestrator**: Coordinates attack strategy based on code analysis
-- **Arbiter**: Consolidates findings, deduplicates, assigns confidence scores
-- **Hardened Sandbox**: Secure code execution with Docker isolation
+| Feature | Description |
+|---------|-------------|
+| **Multi-Agent Architecture** | Five specialized agents attack code from different angles |
+| **OWASP Top 10 Coverage** | Comprehensive security vulnerability detection |
+| **Logic Bug Detection** | Find edge cases, race conditions, and state corruption |
+| **Resilience Testing** | Test failure handling and resource exhaustion scenarios |
+| **Confidence Scoring** | AI-powered severity and exploitability assessment |
+| **Hardened Sandbox** | Execute untrusted code safely with Docker isolation |
+| **Event Sourcing** | Immutable audit trail of all findings |
+| **Type Safe** | Full type hints with mypy strict mode |
+| **Deterministic Demo Mode** | Mock provider for repeatable runs without API keys |
 
-## Installation
+## Agents Overview
 
-```bash
-pip install adversarial-debate
-```
+### ExploitAgent — Security Vulnerabilities
+Maps findings to OWASP Top 10 2021 and CWE identifiers:
 
-Or install from source:
+| Category | What It Finds |
+|----------|---------------|
+| **A01: Broken Access Control** | IDOR, missing authorization, privilege escalation |
+| **A02: Cryptographic Failures** | Weak hashing, hardcoded secrets, insecure random |
+| **A03: Injection** | SQL, command, XSS, LDAP, template injection |
+| **A05: Security Misconfiguration** | Debug mode, permissive CORS, verbose errors |
+| **A08: Integrity Failures** | Insecure deserialization, unsigned data |
+| **A10: SSRF** | Server-side request forgery |
 
-```bash
-git clone https://github.com/dr-gareth-roberts/adversarial-debate.git
-cd adversarial-debate
-pip install -e ".[dev]"
-```
+### BreakAgent — Logic Bugs
+Finds bugs that security scanners miss:
+
+- **Boundary Conditions**: Off-by-one, integer overflow, empty collections
+- **State Machines**: Invalid transitions, missing state validation
+- **Concurrency**: Race conditions, deadlocks, data races
+- **Error Handling**: Uncaught exceptions, improper cleanup
+- **Type Confusion**: Implicit conversions, null handling
+
+### ChaosAgent — Resilience Testing
+Tests how code behaves under stress:
+
+- **Resource Exhaustion**: Memory leaks, connection pool starvation
+- **Network Failures**: Timeouts, partial failures, retry storms
+- **Cascading Failures**: Dependency failures, circuit breaker testing
+- **Recovery**: Crash recovery, state restoration
+
+### Arbiter — Findings Consolidation
+Makes sense of all the findings:
+
+- **Deduplication**: Merges similar findings from different agents
+- **Confidence Scoring**: Rates likelihood and impact
+- **Prioritization**: Ranks by severity and exploitability
+- **Remediation Roadmap**: Suggests fixes in priority order
+
+---
 
 ## Quick Start
+
+### Requirements
+
+- **Python**: 3.11 or higher
+- **Dependency Manager**: [uv](https://github.com/astral-sh/uv) (recommended)
+- **Containerization**: [Docker](https://www.docker.com/) (required for hardened sandboxing)
+- **API Key**: Anthropic API key (default provider; not required for `mock`)
+
+### Installation
+
+```bash
+# Using uv (recommended)
+uv add adversarial-debate
+
+# Using pip
+pip install adversarial-debate
+
+# From source
+git clone https://github.com/dr-gareth-roberts/adversarial-debate.git
+cd adversarial-debate
+uv sync --dev
+```
+
+### Configuration
+
+The framework can be configured via environment variables, a `.env` file, or a configuration file.
+
+#### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (not needed for mock) | *Required for anthropic* |
+| `LLM_PROVIDER` | LLM provider to use (`anthropic`, `mock`) | `anthropic` |
+| `LLM_MODEL` | Model version to use | `claude-sonnet-4-20250514` |
+| `ADVERSARIAL_DEBUG` | Enable verbose debug logging | `false` |
+| `ADVERSARIAL_OUTPUT_DIR`| Where to store results | `./output` |
+| `ADVERSARIAL_BEAD_LEDGER` | Bead ledger path | `./beads/ledger.jsonl` |
+
+#### Using a .env file
+
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+### Basic Usage
+
+#### CLI
+
+```bash
+# Analyze a single file for exploits
+adversarial-debate analyze exploit src/api/users.py
+
+# Create a coordinated attack plan for a directory
+adversarial-debate orchestrate src/
+
+# Run the full pipeline (orchestrate + analyze + verdict)
+adversarial-debate run src/api/ --output results/
+```
+
+#### No-API-Key Demo (Mock Provider)
+
+Run a deterministic demo with the intentionally vulnerable mini app in `examples/mini-app/` (do not deploy it):
+
+```bash
+# Analyze with deterministic findings
+LLM_PROVIDER=mock adversarial-debate analyze exploit examples/mini-app/app.py
+
+# Full pipeline with artifacts under ./output/run-<timestamp>/
+LLM_PROVIDER=mock adversarial-debate run examples/mini-app/ --output output
+```
+
+Or run the scripted demo:
+
+```bash
+./scripts/demo.sh
+# or
+make demo
+```
+
+Example output:
+
+```text
+============================================================
+ExploitAgent Analysis Results
+============================================================
+Confidence: 82%
+
+Findings: 2
+  [HIGH] SQL injection in user lookup
+  [HIGH] Command injection via report runner
+```
+
+The pipeline run writes `attack_plan.json`, `exploit_findings.json`, `break_findings.json`, `chaos_findings.json`, `findings.json`, and `verdict.json`.
+
+#### Python API
 
 ```python
 import asyncio
@@ -49,194 +215,165 @@ from adversarial_debate import (
     BreakAgent,
     ChaosAgent,
     Arbiter,
-    AnthropicProvider,
+    get_provider,
     BeadStore,
     AgentContext,
 )
 
+from datetime import UTC, datetime
+
 async def analyze_code(code: str, file_path: str):
-    # Setup
-    provider = AnthropicProvider()
-    store = BeadStore("beads.db")
+    """Run agents on code and get consolidated findings."""
+    provider = get_provider("anthropic")  # or "mock" for a deterministic demo
+    store = BeadStore()
 
-    # Create agents
-    exploit_agent = ExploitAgent(provider, store)
-    break_agent = BreakAgent(provider, store)
-    chaos_agent = ChaosAgent(provider, store)
-    arbiter = Arbiter(provider, store)
-
-    # Build context
+    # Initialize agents
+    exploit = ExploitAgent(provider, store)
+    
+    # Build context for the agent
     context = AgentContext(
-        run_id="run-001",
-        timestamp_iso="2024-01-01T00:00:00Z",
+        run_id="analysis-001",
+        timestamp_iso=datetime.now(UTC).isoformat(),
         policy={},
-        thread_id="thread-001",
-        task_id="task-001",
+        thread_id="analysis-001",
+        task_id="security-review",
         inputs={
             "code": code,
             "file_path": file_path,
             "language": "python",
-            "exposure": "public",
-        }
+        },
     )
 
-    # Run agents
-    exploit_result = await exploit_agent.run(context)
-    break_result = await break_agent.run(context)
-    chaos_result = await chaos_agent.run(context)
+    # Run analysis
+    result = await exploit.run(context)
+    return result
 
-    # Consolidate findings
-    arbiter_context = AgentContext(
-        run_id="run-001",
-        timestamp_iso="2024-01-01T00:00:00Z",
-        policy={},
-        thread_id="thread-001",
-        task_id="task-001",
-        inputs={
-            "findings": {
-                "exploit": exploit_result.result,
-                "break": break_result.result,
-                "chaos": chaos_result.result,
-            }
-        }
-    )
-    final_result = await arbiter.run(arbiter_context)
-
-    return final_result
-
-# Example usage
-code = '''
-def get_user(user_id):
-    query = f"SELECT * FROM users WHERE id = {user_id}"
-    return db.execute(query)
-'''
-
-result = asyncio.run(analyze_code(code, "app.py"))
-print(f"Found {len(result.result['findings'])} issues")
+# Example: Find potential issues
+vulnerable_code = "def get_user(id): return db.execute(f'SELECT * FROM users WHERE id={id}')"
+result = asyncio.run(analyze_code(vulnerable_code, "app.py"))
 ```
 
-## Agent Types
-
-### ExploitAgent
-
-Focuses on OWASP Top 10 2021 security vulnerabilities:
-
-- **A01: Broken Access Control** - IDOR, missing auth, path traversal
-- **A02: Cryptographic Failures** - Weak hashing, hardcoded secrets
-- **A03: Injection** - SQL, command, XSS, template injection
-- **A05: Security Misconfiguration** - Debug mode, CORS issues
-- **A08: Software Integrity Failures** - Insecure deserialization
-- **A10: SSRF** - Server-side request forgery
-
-### BreakAgent
-
-Focuses on logic bugs and edge cases:
-
-- Boundary value errors (off-by-one, overflow)
-- State machine violations
-- Race conditions and concurrency bugs
-- Error handling gaps
-- Type confusion
-- Business logic flaws
-
-### ChaosAgent
-
-Tests resilience and failure handling:
-
-- Resource exhaustion (memory, disk, connections)
-- Network failures and timeouts
-- Cascading failures
-- Recovery behavior
-- Data corruption scenarios
-- Circuit breaker testing
-
-### Arbiter
-
-Consolidates findings from all agents:
-
-- Deduplicates similar findings
-- Assigns confidence scores
-- Prioritizes by severity and exploitability
-- Generates remediation roadmap
+---
 
 ## Hardened Sandbox
 
-Execute untrusted code safely:
+The framework includes a `SandboxExecutor` to safely execute code during analysis. By default, it uses Docker for strong isolation.
 
 ```python
+import asyncio
 from adversarial_debate import SandboxExecutor, SandboxConfig
 
 config = SandboxConfig(
+    enabled=True,
     timeout_seconds=30,
-    max_memory_mb=512,
-    use_docker=True,
+    memory_limit_mb=512,
+    network_enabled=False,
+    docker_image="python:3.11-slim"
 )
 
 executor = SandboxExecutor(config)
-result = executor.execute_python(
-    code="print('Hello, World!')",
-    inputs={"x": 42}
-)
-print(result.stdout)
+
+async def run_in_sandbox() -> None:
+    result = await executor.execute_python("print('Hello from the sandbox')")
+    print(result.stdout)
+
+asyncio.run(run_in_sandbox())
 ```
 
-Security features:
-- Docker isolation with resource limits
-- Atomic temp file creation
-- Path traversal prevention
-- Input validation and sanitization
-- Cryptographically secure temp names
+### Sandbox Security Features
 
-## Configuration
+- **Docker Isolation**: Code runs in ephemeral, unprivileged containers.
+- **Resource Constraints**: Strict limits on CPU, memory, and execution time.
+- **Network Gapping**: No outbound network access by default.
+- **Read-Only Root**: Prevents modification of the container environment.
+- **Drop Capabilities**: Minimal Linux capabilities assigned to the process.
 
-Set your API key:
+---
 
-```bash
-export ANTHROPIC_API_KEY=your-key-here
-```
+## Documentation
+
+- [Architecture Overview](docs/architecture.md)
+- [API Reference](docs/api.md)
+- [Demo Walkthrough](docs/demo.md)
+- [Examples](examples/)
+- [Contributing Guidelines](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
+
+---
 
 ## Development
 
+### Setup
+
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+# Install dependencies
+uv sync --dev
 
 # Run tests
-pytest tests/ -v
+uv run pytest
 
-# Type check
-mypy src/
+# Run linting
+uv run ruff check .
 
-# Lint
-ruff check src/
+# Run type checking
+uv run mypy src
 ```
 
-## Architecture
+### Convenience Targets
 
-The system uses an event-sourced "bead" architecture where each agent emits structured findings as immutable records:
+```bash
+# Deterministic demo
+make demo
 
+# Lint / format / test
+make lint
+make format
+make test
 ```
-┌─────────────────┐
-│  AgentContext   │  Input: code, policy, prior beads
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│     Agent       │  Stateless processor
-│  (LLM + Parse)  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   AgentOutput   │  Structured findings + beads
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   BeadStore     │  SQLite with FTS5 search
-└─────────────────┘
-```
+
+### Project Structure
+
+- `src/adversarial_debate/`: Core framework code.
+    - `agents/`: AI agent implementations (Exploit, Break, Chaos, Arbiter).
+    - `providers/`: LLM provider abstractions (Anthropic, etc.).
+    - `sandbox/`: Secure execution environment.
+    - `store/`: Immutable "Bead" ledger system.
+    - `cli.py`: Command-line interface.
+- `tests/`: Comprehensive test suite.
+- `examples/`: Usage demonstrations.
+- `scripts/`: Helper scripts (demo, tooling).
+- `docs/`: Technical documentation.
+
+---
+
+## Roadmap
+
+- [ ] OpenAI and LiteLLM provider support
+- [ ] VS Code Extension for real-time analysis
+- [ ] GitHub Action for automated PR security reviews
+- [ ] Support for more languages (JS/TS, Go, Rust)
+- [ ] Web-based visualization dashboard for findings
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for our code of conduct and the process for submitting pull requests.
+
+---
 
 ## License
 
-MIT License - see LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+**Built with [Claude](https://anthropic.com) by the open source community.**
+
+[Report Bug](https://github.com/dr-gareth-roberts/adversarial-debate/issues/new?template=bug_report.yml) •
+[Request Feature](https://github.com/dr-gareth-roberts/adversarial-debate/issues/new?template=feature_request.yml) •
+[Ask Question](https://github.com/dr-gareth-roberts/adversarial-debate/discussions)
+
+</div>

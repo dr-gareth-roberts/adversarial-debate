@@ -17,14 +17,13 @@ import json
 import os
 import re
 import secrets
+import shutil
 import signal
 import subprocess
 import tempfile
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
 
 # =============================================================================
 # SECURITY CONSTANTS AND VALIDATORS
@@ -564,7 +563,7 @@ except Exception as e:
                     execution_time_ms=elapsed,
                 )
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Use SIGKILL for reliable termination (SIGTERM may be ignored)
                 try:
                     proc.send_signal(signal.SIGKILL)
@@ -682,7 +681,7 @@ except Exception as e:
                     execution_time_ms=elapsed,
                 )
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Use SIGKILL for reliable termination (SIGTERM may be ignored)
                 try:
                     proc.send_signal(signal.SIGKILL)

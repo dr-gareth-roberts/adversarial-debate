@@ -1,0 +1,68 @@
+# Adversarial Debate - Docker Compose Configuration
+#
+# Usage:
+#   docker-compose run --rm analyze exploit ./src
+#   docker-compose run --rm analyze break ./src
+#   docker-compose run --rm analyze chaos ./src
+#
+# With custom API key:
+#   ANTHROPIC_API_KEY=your-key docker-compose run --rm analyze exploit ./src
+
+version: "3.8"
+
+services:
+  # Main analysis service
+  analyze:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-human}
+    volumes:
+      # Mount current directory for code analysis
+      - .:/code:ro
+      # Mount output directory for results
+      - ./output:/output
+    working_dir: /code
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M
+
+  # Development service with full access
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=human
+    volumes:
+      - .:/code
+      - ./output:/output
+    working_dir: /code
+    entrypoint: /bin/bash
+    stdin_open: true
+    tty: true
+
+  # Run tests
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: uv run pytest tests/ -v
+    environment:
+      - PYTHONPATH=/app/src
+
+# Networks
+networks:
+  default:
+    driver: bridge
