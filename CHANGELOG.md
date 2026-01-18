@@ -126,5 +126,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/anthropics/adversarial-debate/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/anthropics/adversarial-debate/releases/tag/v0.1.0
+[Unreleased]: https://github.com/dr-gareth-roberts/adversarial-debate/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/dr-gareth-roberts/adversarial-debate/releases/tag/v0.1.0
