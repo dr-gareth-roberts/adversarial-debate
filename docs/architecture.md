@@ -39,8 +39,8 @@ The system consists of five main layers that work together to analyze code and p
 
 ```
 +------------------------------------------------------------------+
-|                         CLI / Python API                          |
-|                    (Entry Points & Orchestration)                 |
+|                         CLI / Python API                         |
+|                    (Entry Points & Orchestration)                |
 +------------------------------------------------------------------+
                                 |
                                 v
