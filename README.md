@@ -291,11 +291,15 @@ asyncio.run(run_in_sandbox())
 
 ## Documentation
 
-- [Architecture Overview](docs/architecture.md)
-- [API Reference](docs/api.md)
-- [Demo Walkthrough](docs/demo.md)
-- [Examples](examples/)
+- [Architecture Overview](docs/architecture.md) - System design, data flow, and component interactions
+- [Agent System](docs/agents.md) - Deep dive into each agent's behavior and attack strategies
+- [Data Structures](docs/data-structures.md) - Complete type reference for all data models
+- [Pipeline Execution](docs/pipeline.md) - Step-by-step walkthrough of the analysis pipeline
+- [API Reference](docs/api.md) - Comprehensive API documentation with examples
+- [Demo Walkthrough](docs/demo.md) - Quick start with the mock provider
+- [Examples](examples/) - Sample code and vulnerable test applications
 - [Contributing Guidelines](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)
 
 ---

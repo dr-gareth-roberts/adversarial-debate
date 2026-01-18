@@ -13,7 +13,7 @@ Thank you for your interest in contributing to adversarial-debate! This document
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/adversarial-debate.git
+   git clone https://github.com/dr-gareth-roberts/adversarial-debate.git
    cd adversarial-debate
    ```
 
