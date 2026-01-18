@@ -45,9 +45,9 @@ The system consists of five main layers that work together to analyze code and p
                                 |
                                 v
 +------------------------------------------------------------------+
-|                      ChaosOrchestrator                            |
-|              (Attack Planning & Agent Coordination)               |
-|                                                                   |
+|                      ChaosOrchestrator                           |
+|              (Attack Planning & Agent Coordination)              |
+|                                                                  |
 |  - Analyzes code changes and risk factors                        |
 |  - Creates AttackPlan with agent assignments                     |
 |  - Optimizes for parallel execution                              |
@@ -69,9 +69,9 @@ The system consists of five main layers that work together to analyze code and p
                                 |
                                 v
 +------------------------------------------------------------------+
-|                           Arbiter                                 |
-|                (Validation & Verdict Rendering)                   |
-|                                                                   |
+|                           Arbiter                                |
+|                (Validation & Verdict Rendering)                  |
+|                                                                  |
 |  - Reviews findings from all red team agents                     |
 |  - Validates exploitability in context                           |
 |  - Renders BLOCK / WARN / PASS verdict                           |
@@ -80,9 +80,9 @@ The system consists of five main layers that work together to analyze code and p
                                 |
                                 v
 +------------------------------------------------------------------+
-|                         BeadStore                                 |
-|                  (Event Sourcing & Audit Trail)                   |
-|                                                                   |
+|                         BeadStore                                |
+|                  (Event Sourcing & Audit Trail)                  |
+|                                                                  |
 |  - Append-only JSONL ledger                                      |
 |  - Thread-safe with file locking                                 |
 |  - Idempotency key tracking                                      |
@@ -116,14 +116,14 @@ All agents inherit from the abstract `Agent` base class and follow a consistent 
                              |
                              v
 +------------------------------------------------------------------+
-|                        Agent.run()                                |
-|                                                                   |
+|                        Agent.run()                               |
+|                                                                  |
 |  1. _build_prompt(context)     Build LLM messages from context   |
 |  2. provider.complete()        Call LLM with JSON mode           |
 |  3. _parse_response()          Parse JSON into structured output |
 |  4. _create_bead()             Create audit record               |
 |  5. bead_store.append()        Persist to ledger                 |
-|                                                                   |
+|                                                                  |
 +------------------------------------------------------------------+
                              |
                              v
