@@ -1,0 +1,268 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/dr-gareth-roberts/adversarial-debate/schemas/config.schema.json",
+  "title": "Adversarial Debate Configuration",
+  "description": "Configuration schema for the adversarial-debate security analysis framework",
+  "type": "object",
+  "properties": {
+    "provider": {
+      "type": "object",
+      "description": "LLM provider configuration",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": ["anthropic", "openai", "azure", "ollama", "mock"],
+          "default": "anthropic",
+          "description": "LLM provider to use"
+        },
+        "api_key": {
+          "type": "string",
+          "description": "API key for the provider (can also use environment variables)"
+        },
+        "base_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Override base URL for the provider API"
+        },
+        "model": {
+          "type": "string",
+          "description": "Default model to use"
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 0.7,
+          "description": "Sampling temperature for model responses"
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 128000,
+          "default": 4096,
+          "description": "Maximum tokens in model response"
+        },
+        "timeout": {
+          "type": "number",
+          "minimum": 1,
+          "default": 120,
+          "description": "Request timeout in seconds"
+        }
+      },
+      "additionalProperties": true
+    },
+    "logging": {
+      "type": "object",
+      "description": "Logging configuration",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+          "default": "INFO",
+          "description": "Logging level"
+        },
+        "format": {
+          "type": "string",
+          "default": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+          "description": "Log message format"
+        },
+        "file": {
+          "type": "string",
+          "description": "Log file path (logs to stderr if not set)"
+        }
+      }
+    },
+    "sandbox": {
+      "type": "object",
+      "description": "Sandbox execution configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to use sandboxed execution"
+        },
+        "image": {
+          "type": "string",
+          "default": "python:3.11-slim",
+          "description": "Docker image for sandbox"
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 30,
+          "description": "Sandbox execution timeout in seconds"
+        },
+        "memory_limit": {
+          "type": "string",
+          "default": "256m",
+          "description": "Memory limit for sandbox container"
+        },
+        "cpu_limit": {
+          "type": "number",
+          "minimum": 0.1,
+          "default": 1.0,
+          "description": "CPU limit for sandbox container"
+        },
+        "network_enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to enable network access in sandbox"
+        }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "description": "Analysis cache configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to cache analysis results"
+        },
+        "directory": {
+          "type": "string",
+          "default": ".adversarial-cache",
+          "description": "Cache directory path"
+        },
+        "ttl_hours": {
+          "type": "number",
+          "minimum": 0,
+          "default": 168,
+          "description": "Cache entry time-to-live in hours (default: 1 week)"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "Output configuration",
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["json", "sarif", "html", "markdown"],
+          "default": "json",
+          "description": "Default output format"
+        },
+        "directory": {
+          "type": "string",
+          "default": "./output",
+          "description": "Output directory for results"
+        },
+        "include_metadata": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include metadata in output"
+        },
+        "pretty": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pretty-print JSON output"
+        }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "description": "Analysis behavior configuration",
+      "properties": {
+        "time_budget": {
+          "type": "integer",
+          "minimum": 10,
+          "default": 300,
+          "description": "Default time budget in seconds"
+        },
+        "parallel_agents": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Maximum number of parallel agent executions"
+        },
+        "default_exposure": {
+          "type": "string",
+          "enum": ["public", "authenticated", "internal"],
+          "default": "internal",
+          "description": "Default exposure level for code being analyzed"
+        },
+        "focus_areas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Default focus areas for analysis"
+        }
+      }
+    },
+    "agents": {
+      "type": "object",
+      "description": "Agent-specific configuration",
+      "properties": {
+        "exploit": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "model_tier": {
+              "type": "string",
+              "enum": ["local_small", "hosted_small", "hosted_large"],
+              "default": "hosted_large"
+            }
+          }
+        },
+        "break": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "model_tier": {
+              "type": "string",
+              "enum": ["local_small", "hosted_small", "hosted_large"],
+              "default": "hosted_large"
+            }
+          }
+        },
+        "chaos": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "model_tier": {
+              "type": "string",
+              "enum": ["local_small", "hosted_small", "hosted_large"],
+              "default": "hosted_small"
+            }
+          }
+        },
+        "arbiter": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "model_tier": {
+              "type": "string",
+              "enum": ["local_small", "hosted_small", "hosted_large"],
+              "default": "hosted_large"
+            }
+          }
+        }
+      }
+    },
+    "bead_ledger_path": {
+      "type": "string",
+      "default": "./beads.jsonl",
+      "description": "Path to the bead store ledger file"
+    },
+    "dry_run": {
+      "type": "boolean",
+      "default": false,
+      "description": "Preview actions without executing"
+    }
+  },
+  "additionalProperties": false
+}

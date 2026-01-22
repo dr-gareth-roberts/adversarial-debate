@@ -320,6 +320,44 @@ class Arbiter(Agent):
         # Parse decision
         decision = self._parse_decision(data.get("decision", "PASS"))
 
+        # Flag findings with unknown IDs
+        input_findings = context.inputs.get("findings", [])
+        input_ids = {
+            finding.get("id")
+            for finding in input_findings
+            if isinstance(finding, dict) and finding.get("id")
+        }
+        reported_ids: set[str] = set()
+        missing_id_count = 0
+        for group_key in (
+            "blocking_issues",
+            "warnings",
+            "passed_findings",
+            "false_positives",
+        ):
+            for item in data.get(group_key, []):
+                if not isinstance(item, dict):
+                    continue
+                original_id = item.get("original_id")
+                if not original_id:
+                    missing_id_count += 1
+                    continue
+                reported_ids.add(original_id)
+
+        limitations = list(data.get("limitations", []))
+        if input_ids:
+            unknown_ids = sorted({rid for rid in reported_ids if rid not in input_ids})
+            if unknown_ids:
+                limitations.append(
+                    "Arbiter output referenced unknown finding IDs: "
+                    + ", ".join(unknown_ids[:10])
+                    + ("" if len(unknown_ids) <= 10 else " (truncated)")
+                )
+        if missing_id_count:
+            limitations.append(
+                f"Arbiter output omitted original_id for {missing_id_count} findings."
+            )
+
         # Parse findings
         blocking_issues = self._parse_validated_findings(data.get("blocking_issues", []))
         warnings = self._parse_validated_findings(data.get("warnings", []))
@@ -351,7 +389,7 @@ class Arbiter(Agent):
             findings_analyzed=len(blocking_issues) + len(warnings) + len(passed_findings) + len(false_positives),
             confidence=data.get("confidence", 0.8),
             assumptions=data.get("assumptions", []),
-            limitations=data.get("limitations", []),
+            limitations=limitations,
         )
 
         # Create bead payload

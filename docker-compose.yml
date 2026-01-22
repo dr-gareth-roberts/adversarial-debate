@@ -7,11 +7,18 @@
 #
 # With custom API key:
 #   ANTHROPIC_API_KEY=your-key docker-compose run --rm analyze exploit ./src
-
-version: "3.8"
+#
+# With OpenAI:
+#   OPENAI_API_KEY=your-key docker-compose --profile openai run --rm analyze-openai exploit ./src
+#
+# With local Ollama:
+#   docker-compose --profile ollama up -d ollama
+#   docker-compose --profile ollama run --rm analyze-ollama exploit ./src
 
 services:
-  # Main analysis service
+  # ==========================================================================
+  # Main analysis service (Anthropic - default)
+  # ==========================================================================
   analyze:
     build:
       context: .
@@ -33,13 +40,154 @@ services:
     tmpfs:
       - /tmp:size=100M
 
-  # Development service with full access
-  dev:
+  # ==========================================================================
+  # OpenAI provider service
+  # ==========================================================================
+  analyze-openai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_OPENAI: "true"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_PROVIDER=openai
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-human}
+    volumes:
+      - .:/code:ro
+      - ./output:/output
+    working_dir: /code
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M
+    profiles:
+      - openai
+
+  # ==========================================================================
+  # Azure OpenAI provider service
+  # ==========================================================================
+  analyze-azure:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_OPENAI: "true"
+    environment:
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-02-01}
+      - LLM_PROVIDER=azure
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-human}
+    volumes:
+      - .:/code:ro
+      - ./output:/output
+    working_dir: /code
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M
+    profiles:
+      - azure
+
+  # ==========================================================================
+  # Ollama local inference service
+  # ==========================================================================
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - ollama
+
+  # Ollama-based analysis (requires ollama service running)
+  analyze-ollama:
     build:
       context: .
       dockerfile: Dockerfile
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - LLM_PROVIDER=ollama
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-human}
+    volumes:
+      - .:/code:ro
+      - ./output:/output
+    working_dir: /code
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M
+    depends_on:
+      ollama:
+        condition: service_healthy
+    profiles:
+      - ollama
+
+  # ==========================================================================
+  # Full provider image (all providers installed)
+  # ==========================================================================
+  analyze-full:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_ALL_PROVIDERS: "true"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-human}
+    volumes:
+      - .:/code:ro
+      - ./output:/output
+    working_dir: /code
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M
+    profiles:
+      - full
+
+  # ==========================================================================
+  # Development service with full access
+  # ==========================================================================
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_ALL_PROVIDERS: "true"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
       - LOG_LEVEL=DEBUG
       - LOG_FORMAT=human
     volumes:
@@ -50,11 +198,15 @@ services:
     stdin_open: true
     tty: true
 
+  # ==========================================================================
   # Run tests
+  # ==========================================================================
   test:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        INSTALL_ALL_PROVIDERS: "true"
     volumes:
       - .:/app
     working_dir: /app
@@ -62,7 +214,40 @@ services:
     environment:
       - PYTHONPATH=/app/src
 
+  # ==========================================================================
+  # Watch mode service
+  # ==========================================================================
+  watch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-human}
+    volumes:
+      - .:/code:ro
+      - ./output:/output
+    working_dir: /code
+    command: ["watch", "--agent", "${WATCH_AGENT:-all}", "/code/src"]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M
+    profiles:
+      - watch
+
+# ==========================================================================
+# Volumes
+# ==========================================================================
+volumes:
+  ollama_data:
+    driver: local
+
+# ==========================================================================
 # Networks
+# ==========================================================================
 networks:
   default:
     driver: bridge

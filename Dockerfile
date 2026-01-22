@@ -3,8 +3,17 @@
 # Build:
 #   docker build -t adversarial-debate .
 #
-# Run:
+# Build with all providers:
+#   docker build --build-arg INSTALL_ALL_PROVIDERS=true -t adversarial-debate:full .
+#
+# Run with Anthropic:
 #   docker run -e ANTHROPIC_API_KEY=your-key adversarial-debate analyze exploit /code
+#
+# Run with OpenAI:
+#   docker run -e OPENAI_API_KEY=your-key -e LLM_PROVIDER=openai adversarial-debate analyze exploit /code
+#
+# Run with Ollama (requires Ollama running):
+#   docker run --network host -e LLM_PROVIDER=ollama adversarial-debate analyze exploit /code
 #
 # Mount code for analysis:
 #   docker run -v $(pwd):/code -e ANTHROPIC_API_KEY=your-key adversarial-debate analyze exploit /code
@@ -13,6 +22,10 @@
 # Stage 1: Build stage
 # =============================================================================
 FROM python:3.11-slim AS builder
+
+# Build arguments for optional providers
+ARG INSTALL_ALL_PROVIDERS=false
+ARG INSTALL_OPENAI=false
 
 # Set build-time variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -34,9 +47,15 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src/ src/
 
-# Install the package
+# Install the package with optional providers
 RUN pip install --upgrade pip && \
-    pip install .
+    if [ "$INSTALL_ALL_PROVIDERS" = "true" ]; then \
+        pip install ".[all-providers]"; \
+    elif [ "$INSTALL_OPENAI" = "true" ]; then \
+        pip install ".[openai]"; \
+    else \
+        pip install .; \
+    fi
 
 # =============================================================================
 # Stage 2: Runtime stage

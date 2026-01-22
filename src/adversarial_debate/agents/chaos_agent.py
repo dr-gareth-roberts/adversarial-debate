@@ -370,6 +370,10 @@ class ChaosAgent(Agent):
         if not experiment.get("title"):
             return None
 
+        experiment_block = experiment.get("experiment", {})
+        if not experiment_block.get("rollback"):
+            return None
+
         # Generate ID if not provided
         exp_id = experiment.get("id", f"CHAOS-{index + 1:03d}")
 
@@ -412,12 +416,12 @@ class ChaosAgent(Agent):
             "failure_mode": failure_mode,
             "severity_if_vulnerable": severity,
             "experiment": {
-                "description": experiment.get("experiment", {}).get("description", ""),
-                "method": experiment.get("experiment", {}).get("method", ""),
-                "duration_seconds": experiment.get("experiment", {}).get("duration_seconds", 60),
-                "safe_to_automate": experiment.get("experiment", {}).get("safe_to_automate", False),
-                "requires_isolation": experiment.get("experiment", {}).get("requires_isolation", False),
-                "rollback": experiment.get("experiment", {}).get("rollback", ""),
+                "description": experiment_block.get("description", ""),
+                "method": experiment_block.get("method", ""),
+                "duration_seconds": experiment_block.get("duration_seconds", 60),
+                "safe_to_automate": experiment_block.get("safe_to_automate", False),
+                "requires_isolation": experiment_block.get("requires_isolation", False),
+                "rollback": experiment_block.get("rollback", ""),
             },
             "hypothesis": experiment.get("hypothesis", {}),
             "evidence": experiment.get("evidence", {}),

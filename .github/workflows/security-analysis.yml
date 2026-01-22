@@ -1,0 +1,39 @@
+# Example workflow for using adversarial-debate in your repository
+# Copy this file to your .github/workflows/ directory
+
+name: Security Analysis
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  security-events: write  # Required for SARIF upload
+
+jobs:
+  security-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Adversarial Debate Security Analysis
+        uses: dr-gareth-roberts/adversarial-debate@v1
+        with:
+          target: 'src/'
+          provider: 'anthropic'
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          output-format: 'sarif'
+          output-file: 'security-results.sarif'
+          fail-on-findings: 'true'
+          severity-threshold: 'high'
+
+      - name: Upload analysis results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-analysis
+          path: security-results.sarif

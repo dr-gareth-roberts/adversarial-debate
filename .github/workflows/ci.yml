@@ -41,7 +41,7 @@ jobs:
         run: uv run pytest tests/ -v --tb=short
 
       - name: Run tests with coverage
-        run: uv run pytest tests/ --cov=adversarial_debate --cov-report=xml --cov-report=term-missing
+        run: uv run pytest tests/ --cov=adversarial_debate --cov-report=xml --cov-report=term-missing --cov-fail-under=85
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -66,6 +66,20 @@ jobs:
 
       - name: Run security checks with bandit
         run: uv run bandit -r src/adversarial_debate -ll -ii
+
+      - name: Run dependency vulnerability audit
+        run: uv run pip-audit
+
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          uv run python -m pip install cyclonedx-bom
+          uv run cyclonedx-py -o sbom.xml
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.xml
 
   docs:
     runs-on: ubuntu-latest

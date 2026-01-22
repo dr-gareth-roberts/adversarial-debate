@@ -317,6 +317,10 @@ class BreakAgent(Agent):
         if not finding.get("title"):
             return None
 
+        proof = finding.get("proof_of_concept", {})
+        if not proof.get("code"):
+            return None
+
         # Generate ID if not provided
         finding_id = finding.get("id", f"BREAK-{index + 1:03d}")
 
@@ -339,7 +343,7 @@ class BreakAgent(Agent):
             "confidence": finding.get("confidence", 0.8),
             "description": finding.get("description", ""),
             "attack_vector": finding.get("attack_vector", ""),
-            "proof_of_concept": finding.get("proof_of_concept", {}),
+            "proof_of_concept": proof,
             "impact": finding.get("impact", ""),
             "remediation": finding.get("remediation", {}),
             "line_numbers": finding.get("line_numbers", []),

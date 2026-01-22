@@ -182,6 +182,18 @@ Common fixtures are defined in `tests/conftest.py`:
 4. Ensure all checks pass
 5. Submit a pull request with a clear description
 
+## Release Process
+
+Releases are automated via GitHub Actions and triggered by version tags.
+
+1. Ensure `pyproject.toml` version is updated and `CHANGELOG.md` is current.
+2. Create a signed tag: `git tag -s vX.Y.Z -m "vX.Y.Z"`
+3. Push the tag: `git push origin vX.Y.Z`
+
+The `Release` workflow builds and publishes to PyPI using trusted publishing
+(OIDC). Configure the PyPI project to trust this GitHub repository before
+tagging. The workflow also uploads built artifacts to the GitHub release.
+
 ### PR Guidelines
 
 - Keep PRs focused on a single change

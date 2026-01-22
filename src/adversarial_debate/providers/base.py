@@ -1,6 +1,7 @@
 """Base LLM provider abstraction."""
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -48,6 +49,15 @@ class LLMResponse:
     raw_response: Any = None
 
 
+@dataclass
+class StreamChunk:
+    """A chunk from a streaming response."""
+    content: str
+    is_final: bool = False
+    finish_reason: str | None = None
+    usage: dict[str, int] | None = None
+
+
 class LLMProvider(ABC):
     """Abstract base class for LLM providers.
 
@@ -62,6 +72,14 @@ class LLMProvider(ABC):
     def name(self) -> str:
         """Provider name (e.g., 'anthropic', 'openai', 'ollama')."""
         ...
+
+    @property
+    def supports_streaming(self) -> bool:
+        """Whether this provider supports streaming responses.
+
+        Override to return True if streaming is implemented.
+        """
+        return False
 
     @abstractmethod
     async def complete(
@@ -86,6 +104,42 @@ class LLMProvider(ABC):
             LLMResponse with generated content
         """
         ...
+
+    async def stream(
+        self,
+        messages: list[Message],
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> AsyncIterator[StreamChunk]:
+        """Stream a completion from the model.
+
+        Default implementation falls back to non-streaming complete().
+        Override in subclasses for true streaming support.
+
+        Args:
+            messages: Conversation history
+            model: Override default model
+            temperature: Override default temperature
+            max_tokens: Override default max_tokens
+
+        Yields:
+            StreamChunk objects with content fragments
+        """
+        # Default: fall back to non-streaming
+        response = await self.complete(
+            messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        yield StreamChunk(
+            content=response.content,
+            is_final=True,
+            finish_reason=response.finish_reason,
+            usage=response.usage,
+        )
 
     @abstractmethod
     def get_model_for_tier(self, tier: ModelTier) -> str:

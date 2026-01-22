@@ -52,6 +52,13 @@ Examples:
     )
 
     parser.add_argument(
+        "--completions",
+        choices=["bash", "zsh", "fish"],
+        help="Generate shell completion script and exit",
+        metavar="SHELL",
+    )
+
+    parser.add_argument(
         "-c", "--config",
         type=str,
         help="Path to configuration file",
@@ -189,6 +196,49 @@ Examples:
         action="store_true",
         help="Skip the final verdict (just collect findings)",
     )
+
+    # watch command
+    watch_parser = subparsers.add_parser(
+        "watch",
+        help="Watch files and re-run analysis on changes",
+        description="Continuously watch for file changes and re-run analysis",
+    )
+    watch_parser.add_argument(
+        "target",
+        type=str,
+        help="File or directory to watch",
+    )
+    watch_parser.add_argument(
+        "--agent",
+        choices=["exploit", "break", "chaos", "all"],
+        default="all",
+        help="Agent to run (default: all)",
+    )
+    watch_parser.add_argument(
+        "--debounce",
+        type=float,
+        default=0.5,
+        help="Debounce delay in seconds (default: 0.5)",
+    )
+    watch_parser.add_argument(
+        "--patterns",
+        type=str,
+        nargs="+",
+        default=["*.py"],
+        help="File patterns to watch (default: *.py)",
+    )
+
+    # cache command
+    cache_parser = subparsers.add_parser(
+        "cache",
+        help="Manage analysis cache",
+        description="View and manage the analysis cache",
+    )
+    cache_subparsers = cache_parser.add_subparsers(dest="cache_command")
+
+    cache_subparsers.add_parser("stats", help="Show cache statistics")
+    cache_subparsers.add_parser("clear", help="Clear all cache entries")
+    cache_subparsers.add_parser("cleanup", help="Remove expired cache entries")
 
     return parser
 
@@ -742,11 +792,96 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+async def cmd_watch(args: argparse.Namespace, config: Config) -> int:
+    """Run in watch mode."""
+    from .watch import WatchConfig, WatchRunner
+
+    target_path = Path(args.target)
+    if not target_path.exists():
+        print_error(f"Target not found: {args.target}")
+        return 1
+
+    watch_config = WatchConfig(
+        patterns=args.patterns,
+        debounce_seconds=args.debounce,
+    )
+
+    async def analyze_files(changed_paths: list[Path]) -> None:
+        """Run analysis on changed files."""
+        print(f"\n{'=' * 60}")
+        print(f"Analyzing {len(changed_paths)} file(s)...")
+        print(f"{'=' * 60}\n")
+
+        # Create a temporary args for analyze
+        from types import SimpleNamespace
+
+        for path in changed_paths[:5]:  # Limit to first 5 for performance
+            analyze_args = SimpleNamespace(
+                agent=args.agent if args.agent != "all" else "exploit",
+                target=str(path),
+                focus=None,
+                timeout=60,
+                json_output=args.json_output if hasattr(args, 'json_output') else False,
+                output=None,
+            )
+            try:
+                await cmd_analyze(analyze_args, config)
+            except Exception as e:
+                print_error(f"Analysis failed for {path}: {e}")
+
+    runner = WatchRunner([target_path], analyze_files, watch_config)
+    await runner.run()
+    return 0
+
+
+async def cmd_cache(args: argparse.Namespace, config: Config) -> int:
+    """Manage analysis cache."""
+    from .cache import CacheManager
+
+    cache = CacheManager()
+
+    if args.cache_command == "stats":
+        stats = cache.stats()
+        if args.json_output if hasattr(args, 'json_output') else False:
+            print_json(stats)
+        else:
+            print("\nCache Statistics")
+            print("=" * 40)
+            print(f"Enabled: {stats.get('enabled', False)}")
+            if stats.get('enabled'):
+                print(f"Total Entries: {stats.get('total_entries', 0)}")
+                print(f"Valid Entries: {stats.get('valid_entries', 0)}")
+                print(f"Expired Entries: {stats.get('expired_entries', 0)}")
+                print(f"Total Size: {stats.get('total_size_mb', 0)} MB")
+                print(f"Cache Dir: {stats.get('cache_dir', 'N/A')}")
+                if stats.get('by_agent'):
+                    print("\nBy Agent:")
+                    for agent, count in stats['by_agent'].items():
+                        print(f"  {agent}: {count}")
+        return 0
+
+    elif args.cache_command == "clear":
+        count = cache.clear()
+        print(f"Cleared {count} cache entries")
+        return 0
+
+    elif args.cache_command == "cleanup":
+        count = cache.cleanup()
+        print(f"Removed {count} expired cache entries")
+        return 0
+
+    else:
+        print("No cache command specified. Use: stats, clear, or cleanup")
+        return 1
+
+
 async def async_main(args: argparse.Namespace, config: Config) -> int:
     """Async main entry point."""
     command_map = {
         "analyze": cmd_analyze,
         "orchestrate": cmd_orchestrate,
+        "watch": cmd_watch,
+        "cache": cmd_cache,
         "verdict": cmd_verdict,
         "run": cmd_run,
     }
@@ -767,6 +902,12 @@ def main() -> NoReturn:
     """Main entry point for the CLI."""
     parser = create_parser()
     args = parser.parse_args()
+
+    # Handle completions early (before config loading)
+    if hasattr(args, 'completions') and args.completions:
+        from .completions import print_completion_script
+        print_completion_script(args.completions)
+        sys.exit(0)
 
     # Load and set configuration
     try:

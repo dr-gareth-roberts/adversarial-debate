@@ -1,9 +1,10 @@
 """Anthropic Claude provider implementation."""
 
 import os
+from collections.abc import AsyncIterator
 from typing import Any
 
-from .base import LLMProvider, LLMResponse, Message, ModelTier, ProviderConfig
+from .base import LLMProvider, LLMResponse, Message, ModelTier, ProviderConfig, StreamChunk
 
 try:
     import anthropic
@@ -44,6 +45,10 @@ class AnthropicProvider(LLMProvider):
     @property
     def name(self) -> str:
         return "anthropic"
+
+    @property
+    def supports_streaming(self) -> bool:
+        return True
 
     def _default_model(self) -> str:
         return "claude-sonnet-4-20250514"
@@ -103,3 +108,56 @@ class AnthropicProvider(LLMProvider):
             finish_reason=response.stop_reason,
             raw_response=response,
         )
+
+    async def stream(
+        self,
+        messages: list[Message],
+        *,
+        model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ) -> AsyncIterator[StreamChunk]:
+        """Stream a completion from Claude.
+
+        Yields content chunks as they arrive from the API.
+        """
+        model, temperature, max_tokens = self._resolve_params(
+            model, temperature, max_tokens
+        )
+
+        # Extract system message if present
+        system_content: str | None = None
+        api_messages: list[dict[str, Any]] = []
+
+        for msg in messages:
+            if msg.role == "system":
+                system_content = msg.content
+            else:
+                api_messages.append({"role": msg.role, "content": msg.content})
+
+        # Build request
+        request_kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": api_messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+
+        if system_content:
+            request_kwargs["system"] = system_content
+
+        async with self._client.messages.stream(**request_kwargs) as stream:
+            async for text in stream.text_stream:
+                yield StreamChunk(content=text, is_final=False)
+
+            # Get final message for usage stats
+            final_message = await stream.get_final_message()
+            yield StreamChunk(
+                content="",
+                is_final=True,
+                finish_reason=final_message.stop_reason,
+                usage={
+                    "input_tokens": final_message.usage.input_tokens,
+                    "output_tokens": final_message.usage.output_tokens,
+                },
+            )
