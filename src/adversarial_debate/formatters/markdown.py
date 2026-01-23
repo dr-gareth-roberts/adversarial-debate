@@ -122,7 +122,7 @@ class MarkdownFormatter(Formatter):
         if summary.get("false_positives"):
             md += f"\n- **False Positives:** {summary['false_positives']}"
 
-        report = summary.get("report")
+        report = summary.get("report") or verdict.get("report")
         if report:
             md += f"\n\n{report}"
 

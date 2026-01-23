@@ -180,6 +180,13 @@ Examples:
         help="File or directory to analyze",
     )
     run_parser.add_argument(
+        "--files",
+        type=str,
+        nargs="*",
+        help="Analyze only these specific files (useful for pre-commit)",
+        metavar="FILE",
+    )
+    run_parser.add_argument(
         "--time-budget",
         type=int,
         default=600,
@@ -195,6 +202,64 @@ Examples:
         "--skip-verdict",
         action="store_true",
         help="Skip the final verdict (just collect findings)",
+    )
+    run_parser.add_argument(
+        "--skip-debate",
+        action="store_true",
+        help="Skip cross-examination debate step",
+    )
+    run_parser.add_argument(
+        "--debate-max-findings",
+        type=int,
+        default=40,
+        help="Max findings to include in cross-examination (default: 40)",
+    )
+    run_parser.add_argument(
+        "--format",
+        choices=["json", "sarif", "html", "markdown"],
+        help="Write a formatted report (requires --report-file)",
+    )
+    run_parser.add_argument(
+        "--report-file",
+        type=str,
+        help="Write formatted report to this path",
+        metavar="PATH",
+    )
+    run_parser.add_argument(
+        "--bundle-file",
+        type=str,
+        help="Write the canonical JSON bundle to this path (default: <run_dir>/bundle.json)",
+        metavar="PATH",
+    )
+    run_parser.add_argument(
+        "--fail-on",
+        choices=["block", "warn", "never"],
+        default="block",
+        help="Exit non-zero based on verdict (default: block)",
+    )
+    run_parser.add_argument(
+        "--min-severity",
+        choices=["critical", "high", "medium", "low", "info"],
+        default="high",
+        help="Minimum severity to consider for failure gating (default: high)",
+    )
+    run_parser.add_argument(
+        "--baseline-file",
+        type=str,
+        help="Baseline bundle JSON file to compare against",
+        metavar="PATH",
+    )
+    run_parser.add_argument(
+        "--baseline-mode",
+        choices=["off", "only-new"],
+        default="off",
+        help="Failure gating mode with baseline (default: off)",
+    )
+    run_parser.add_argument(
+        "--baseline-write",
+        type=str,
+        help="Write the current bundle to this path as a baseline and exit 0",
+        metavar="PATH",
     )
 
     # watch command
@@ -598,22 +663,36 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
 
     # Collect files and patches
     file_path = str(target_path)
-    if target_path.is_file():
+    code_parts: list[str] = []
+    files: list[str] = []
+    changed_files: list[dict[str, str]] = []
+    patches: dict[str, str] = {}
+
+    if args.files:
+        for fp in args.files:
+            p = Path(fp)
+            if not p.exists() or not p.is_file():
+                print_error(f"File not found: {fp}")
+                return 1
+            files.append(str(p))
+            text = p.read_text()
+            code_parts.append(f"# File: {p}\n{text}\n")
+            changed_files.append({"path": str(p), "change_type": "modified"})
+            patches[str(p)] = text[:2000]
+        code = "\n".join(code_parts)
+    elif target_path.is_file():
         code = target_path.read_text()
         files = [str(target_path)]
         changed_files = [{"path": str(target_path), "change_type": "modified"}]
         patches = {str(target_path): code[:2000]}
     else:
-        code_parts = []
-        files = []
-        changed_files = []
-        patches = {}
         for py_file in target_path.rglob("*.py"):
             rel_path = str(py_file.relative_to(target_path))
             files.append(str(py_file))
-            code_parts.append(f"# File: {py_file}\n{py_file.read_text()}\n")
+            text = py_file.read_text()
+            code_parts.append(f"# File: {py_file}\n{text}\n")
             changed_files.append({"path": rel_path, "change_type": "modified"})
-            patches[rel_path] = py_file.read_text()[:2000]
+            patches[rel_path] = text[:2000]
         code = "\n".join(code_parts)
 
     if not files:
@@ -729,6 +808,59 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     with open(combined_path, "w") as f:
         json.dump(combined_findings, f, indent=2, default=str)
 
+    # Cross-examination debate step (ferocious peer review between agents)
+    debated_findings = None
+    debate_output = None
+    if not args.skip_debate and not args.skip_verdict:
+        from .results import BundleInputs, build_results_bundle
+        from .agents import CrossExaminationAgent
+
+        pre_bundle = build_results_bundle(
+            inputs=BundleInputs(
+                run_id=run_id,
+                target=args.target,
+                provider=config.provider.provider,
+                started_at_iso=timestamp.isoformat(),
+                finished_at_iso=timestamp.isoformat(),
+                files_analyzed=files,
+                time_budget_seconds=args.time_budget,
+                config_path=args.config,
+            ),
+            exploit_result=exploit_output.result,
+            break_result=break_output.result,
+            chaos_result=chaos_output.result,
+            arbiter_result=None,
+        )
+
+        debater = CrossExaminationAgent(provider, bead_store)
+        debate_context = AgentContext(
+            run_id=run_id,
+            timestamp_iso=timestamp.isoformat(),
+            policy={},
+            thread_id=run_id,
+            task_id="cross-examination",
+            inputs={
+                "findings": pre_bundle.get("findings", []),
+                "code_excerpt": analysis_inputs.get("code", "")[:20000],
+                "max_findings": args.debate_max_findings,
+            },
+        )
+        try:
+            debate_output = await debater.run(debate_context)
+            debated_findings = debate_output.result.get("findings", None)
+            if isinstance(debated_findings, list):
+                from .baseline import compute_fingerprint
+
+                for f in debated_findings:
+                    if isinstance(f, dict) and not f.get("fingerprint"):
+                        f["fingerprint"] = compute_fingerprint(f)
+            debated_path = run_dir / "findings.debated.json"
+            with open(debated_path, "w") as f:
+                json.dump(debated_findings, f, indent=2, default=str)
+        except Exception as e:
+            logger.exception("CrossExaminationAgent failed")
+            print_error(f"Cross-examination failed (continuing): {e}")
+
     verdict_output = None
     if not args.skip_verdict:
         arbiter_context = AgentContext(
@@ -738,7 +870,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
             thread_id=run_id,
             task_id="verdict",
             inputs={
-                "findings": combined_findings,
+                "findings": debated_findings if debated_findings is not None else combined_findings,
                 "original_task": f"CLI run on {args.target}",
                 "changed_files": changed_files,
             },
@@ -766,13 +898,118 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         "verdict": verdict_output.result.get("summary", {}) if verdict_output else None,
     }
 
+    # Build canonical bundle + optional formatted report
+    finished_at = datetime.now(UTC).isoformat()
+    from .results import BundleInputs, build_results_bundle
+
+    bundle = build_results_bundle(
+        inputs=BundleInputs(
+            run_id=run_id,
+            target=args.target,
+            provider=config.provider.provider,
+            started_at_iso=timestamp.isoformat(),
+            finished_at_iso=finished_at,
+            files_analyzed=files,
+            time_budget_seconds=args.time_budget,
+            config_path=args.config,
+        ),
+        exploit_result=exploit_output.result,
+        break_result=break_output.result,
+        chaos_result=chaos_output.result,
+        arbiter_result=verdict_output.result if verdict_output else None,
+    )
+
+    if debate_output and debated_findings is not None:
+        # Prefer debated findings in the canonical bundle and recompute counts.
+        bundle["findings"] = debated_findings
+        bundle_metadata = bundle.get("metadata", {})
+        severity_counts: dict[str, int] = {}
+        for f in debated_findings:
+            sev = str((f or {}).get("severity", "UNKNOWN")).upper()
+            severity_counts[sev] = severity_counts.get(sev, 0) + 1
+        bundle_metadata["finding_counts"] = {
+            "total": len(debated_findings),
+            "by_severity": severity_counts,
+        }
+        bundle_metadata["cross_examination"] = debate_output.result.get("summary", {})
+        bundle["metadata"] = bundle_metadata
+
+    # Optional baseline diff (for PR workflows: fail only on NEW findings)
+    baseline_diff: dict[str, Any] | None = None
+    baseline_exit_code: int | None = None
+    if args.baseline_file and args.baseline_mode != "off":
+        try:
+            baseline_bundle = json.loads(Path(args.baseline_file).read_text())
+            from .baseline import diff_bundles, severity_gte
+
+            diff = diff_bundles(bundle, baseline_bundle)
+            baseline_diff = diff.to_dict()
+            bundle["baseline"] = {
+                "mode": args.baseline_mode,
+                "baseline_file": args.baseline_file,
+                **baseline_diff,
+            }
+
+            if args.baseline_mode == "only-new" and args.fail_on != "never":
+                threshold = str(args.min_severity).upper()
+                regressions = [
+                    f for f in diff.new if severity_gte(str(f.get("severity", "UNKNOWN")), threshold)
+                ]
+                if regressions:
+                    # Mirror existing convention: 2 means "block".
+                    baseline_exit_code = 2
+        except Exception as e:
+            print_error(f"Failed to apply baseline comparison: {e}")
+
+    bundle_path = Path(args.bundle_file) if args.bundle_file else (run_dir / "bundle.json")
+    bundle_path.parent.mkdir(parents=True, exist_ok=True)
+    bundle_path.write_text(json.dumps(bundle, indent=2, default=str))
+
+    if args.baseline_write:
+        baseline_out = Path(args.baseline_write)
+        baseline_out.parent.mkdir(parents=True, exist_ok=True)
+        baseline_out.write_text(json.dumps(bundle, indent=2, default=str))
+
+    report_path: Path | None = None
+    if args.report_file:
+        from .formatters import FormatterConfig, get_formatter
+
+        fmt = args.format
+        if not fmt:
+            suffix = Path(args.report_file).suffix.lower()
+            fmt = {
+                ".sarif": "sarif",
+                ".json": "json",
+                ".md": "markdown",
+                ".html": "html",
+            }.get(suffix, "sarif")
+
+        formatter = get_formatter(
+            fmt,
+            FormatterConfig(
+                tool_name="adversarial-debate",
+                tool_version=__version__,
+            ),
+        )
+        report_path = Path(args.report_file)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(formatter.format(bundle))
+
+    if args.baseline_write:
+        if not args.json_output:
+            print(f"Baseline written: {args.baseline_write}")
+        return 0
+
     if args.json_output:
-        print_json(summary)
+        print_json(bundle)
     else:
         print(f"\n{'=' * 60}")
         print("Run Complete")
         print(f"{'=' * 60}")
         print(f"Output Dir: {run_dir}")
+        print(f"Bundle: {bundle_path}")
+        if report_path:
+            print(f"Report: {report_path}")
         print(f"Attack Plan: {attack_plan_path}")
         print(f"Exploit Findings: {exploit_path}")
         print(f"Break Findings: {break_path}")
@@ -785,9 +1022,23 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
             print(f"Warnings: {verdict_summary.get('warnings', 0)}")
             print(f"Passed: {verdict_summary.get('passed', 0)}")
             print(f"False Positives: {verdict_summary.get('false_positives', 0)}")
+        if baseline_diff:
+            print("\nBASELINE DIFF")
+            print(f"New: {baseline_diff.get('new_count', 0)}")
+            print(f"Fixed: {baseline_diff.get('fixed_count', 0)}")
 
-    if verdict_output and verdict_output.result.get("summary", {}).get("should_block"):
-        return 2
+    if baseline_exit_code is not None:
+        return baseline_exit_code
+
+    if args.fail_on != "never" and verdict_output:
+        verdict_summary = verdict_output.result.get("summary", {})
+        decision = verdict_summary.get("decision")
+        should_block = verdict_summary.get("should_block", False)
+
+        if should_block:
+            return 2
+        if args.fail_on == "warn" and decision in {"WARN", "BLOCK"}:
+            return 1
 
     return 0
 

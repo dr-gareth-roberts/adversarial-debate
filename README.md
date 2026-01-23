@@ -337,6 +337,30 @@ make format
 make test
 ```
 
+### Local Pre-commit (Optional)
+
+To run the adversarial pipeline locally as a pre-commit hook, use `--files` so only staged paths are analyzed.
+This is best configured as a **manual** hook (so you can opt-in when you want deeper analysis).
+
+Example `.pre-commit-config.yaml` snippet for your repo:
+
+```yaml
+- repo: local
+  hooks:
+    - id: adversarial-debate
+      name: adversarial-debate (manual)
+      entry: bash -lc 'adversarial-debate run . --files "$@" --time-budget 60 --skip-verdict --fail-on never --format markdown --report-file .adversarial-precommit.md'
+      language: system
+      types: [python]
+      stages: [manual]
+```
+
+Then run:
+
+```bash
+pre-commit run adversarial-debate --hook-stage manual
+```
+
 ### Project Structure
 
 - `src/adversarial_debate/`: Core framework code.

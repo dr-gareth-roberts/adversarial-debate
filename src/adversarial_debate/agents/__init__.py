@@ -14,6 +14,7 @@ from .base import Agent, AgentContext, AgentOutput
 from .break_agent import BreakAgent
 from .chaos_agent import ChaosAgent
 from .chaos_orchestrator import ChaosOrchestrator
+from .cross_examiner import CrossExaminationAgent
 from .exploit_agent import ExploitAgent
 
 __all__ = [
@@ -24,5 +25,6 @@ __all__ = [
     "BreakAgent",
     "ChaosAgent",
     "ChaosOrchestrator",
+    "CrossExaminationAgent",
     "Arbiter",
 ]

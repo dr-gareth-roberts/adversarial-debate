@@ -92,7 +92,7 @@ _adversarial_debate_completions() {
                 COMPREPLY=( $(compgen -W "--context --help" -- ${cur}) )
                 ;;
             run)
-                COMPREPLY=( $(compgen -W "--time-budget --parallel --skip-verdict --help" -- ${cur}) )
+                COMPREPLY=( $(compgen -W "--files --time-budget --parallel --skip-verdict --skip-debate --debate-max-findings --format --report-file --bundle-file --fail-on --min-severity --baseline-file --baseline-mode --baseline-write --help" -- ${cur}) )
                 ;;
             watch)
                 COMPREPLY=( $(compgen -W "--agent --debounce --patterns --help" -- ${cur}) )
@@ -181,9 +181,20 @@ _adversarial_debate() {
                 run)
                     _arguments \\
                         '1:target:_files' \\
+                        '*--files[Specific files]:file:_files' \\
                         '--time-budget[Time budget]:seconds:' \\
                         '--parallel[Parallel agents]:count:' \\
                         '--skip-verdict[Skip final verdict]' \\
+                        '--skip-debate[Skip cross-examination debate]' \\
+                        '--debate-max-findings[Max findings for debate]:count:' \\
+                        '--format[Report format]:format:(json sarif html markdown)' \\
+                        '--report-file[Report path]:path:_files' \\
+                        '--bundle-file[Bundle path]:path:_files' \\
+                        '--fail-on[Fail on verdict]:mode:(block warn never)' \\
+                        '--min-severity[Min severity]:severity:(critical high medium low info)' \\
+                        '--baseline-file[Baseline bundle]:path:_files' \\
+                        '--baseline-mode[Baseline mode]:mode:(off only-new)' \\
+                        '--baseline-write[Write baseline]:path:_files' \\
                         '--help[Show help]'
                     ;;
                 watch)
@@ -251,6 +262,17 @@ complete -c adversarial-debate -n "__fish_seen_subcommand_from verdict" -l conte
 complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l time-budget -x -d "Time budget seconds"
 complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l parallel -x -d "Parallel agents"
 complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l skip-verdict -d "Skip final verdict"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l files -x -d "Specific files"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l skip-debate -d "Skip cross-examination debate"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l debate-max-findings -x -d "Max findings for debate"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l format -x -a "json sarif html markdown" -d "Report format"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l report-file -r -d "Report path"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l bundle-file -r -d "Bundle path"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l fail-on -x -a "block warn never" -d "Fail on verdict"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l min-severity -x -a "critical high medium low info" -d "Min severity"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l baseline-file -r -d "Baseline bundle"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l baseline-mode -x -a "off only-new" -d "Baseline mode"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l baseline-write -r -d "Write baseline"
 
 # watch command
 complete -c adversarial-debate -n "__fish_seen_subcommand_from watch" -l agent -x -a "exploit break chaos all" -d "Agent to run"

@@ -48,6 +48,16 @@ inputs:
     required: false
     default: 'security-analysis.sarif'
 
+  baseline-file:
+    description: 'Path to baseline bundle (in repo) used for PR regression gating'
+    required: false
+    default: '.adversarial-baseline.json'
+
+  baseline-mode:
+    description: 'Baseline gating mode (off, only-new)'
+    required: false
+    default: 'only-new'
+
   fail-on-findings:
     description: 'Fail the action if security findings are detected'
     required: false
@@ -97,10 +107,10 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
-    - name: Install adversarial-debate
+    - name: Install adversarial-debate (from action source)
       shell: bash
       run: |
-        pip install adversarial-debate
+        pip install "$GITHUB_ACTION_PATH"
 
     - name: Run security analysis
       id: analyze
@@ -112,97 +122,131 @@ runs:
         AZURE_OPENAI_ENDPOINT: ${{ inputs.azure-openai-endpoint }}
         LLM_PROVIDER: ${{ inputs.provider }}
       run: |
-        # Determine command based on agent selection
-        if [ "${{ inputs.agent }}" = "all" ]; then
-          CMD="adversarial-debate run"
-        else
-          CMD="adversarial-debate analyze ${{ inputs.agent }}"
-        fi
+        set +e
 
-        # Run analysis
+        TARGET="${{ inputs.target }}"
         OUTPUT_FILE="${{ inputs.output-file }}"
-        $CMD "${{ inputs.target }}" \
-          --output "$OUTPUT_FILE" \
-          --time-budget ${{ inputs.time-budget }} \
-          --json-output > results.json 2>&1 || true
+        FORMAT="${{ inputs.output-format }}"
+        AGENT="${{ inputs.agent }}"
+        BASELINE_FILE="${{ inputs.baseline-file }}"
+        BASELINE_MODE="${{ inputs.baseline-mode }}"
 
-        # Parse results
-        if [ -f results.json ]; then
-          FINDINGS=$(cat results.json | python3 -c "
-        import json, sys
-        try:
-            data = json.load(sys.stdin)
-            findings = data.get('findings', {})
-            if isinstance(findings, dict):
-                total = sum(findings.values())
-            else:
-                total = len(data.get('findings', []))
-            print(total)
-        except:
-            print(0)
-        ")
+        # Always write a canonical bundle for downstream parsing
+        BUNDLE_FILE="results.bundle.json"
 
-          CRITICAL=$(cat results.json | python3 -c "
-        import json, sys
-        try:
-            data = json.load(sys.stdin)
-            verdict = data.get('verdict', {}).get('summary', {})
-            print(verdict.get('blocking_issues', 0))
-        except:
-            print(0)
-        ")
-
-          HIGH=$(cat results.json | python3 -c "
-        import json, sys
-        try:
-            data = json.load(sys.stdin)
-            verdict = data.get('verdict', {}).get('summary', {})
-            print(verdict.get('warnings', 0))
-        except:
-            print(0)
-        ")
-
-          VERDICT=$(cat results.json | python3 -c "
-        import json, sys
-        try:
-            data = json.load(sys.stdin)
-            verdict = data.get('verdict', {}).get('summary', {})
-            print(verdict.get('decision', 'UNKNOWN'))
-        except:
-            print('UNKNOWN')
-        ")
+        if [ "$AGENT" = "all" ]; then
+          adversarial-debate run "$TARGET" \
+            --time-budget "${{ inputs.time-budget }}" \
+            --bundle-file "$BUNDLE_FILE" \
+            --report-file "$OUTPUT_FILE" \
+            --format "$FORMAT" \
+            --baseline-mode "$BASELINE_MODE" \
+            --baseline-file "$BASELINE_FILE" \
+            --min-severity "${{ inputs.severity-threshold }}" \
+            --fail-on never
+          TOOL_EXIT=$?
         else
-          FINDINGS=0
-          CRITICAL=0
-          HIGH=0
-          VERDICT="UNKNOWN"
+          adversarial-debate analyze "$AGENT" "$TARGET" --json-output --output results.raw.json
+          TOOL_EXIT=$?
+
+          python3 - <<'PY'
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+
+from adversarial_debate.results import (
+    normalize_break_findings,
+    normalize_chaos_experiments,
+    normalize_exploit_findings,
+)
+
+raw = json.loads(Path("results.raw.json").read_text())
+agent = "${{ inputs.agent }}"
+
+if agent == "exploit":
+    findings = normalize_exploit_findings(raw.get("findings", []))
+elif agent == "break":
+    findings = normalize_break_findings(raw.get("findings", []), target_file_path="${{ inputs.target }}")
+elif agent == "chaos":
+    findings = normalize_chaos_experiments(raw.get("experiments", []))
+else:
+    findings = []
+
+severity_counts = {}
+for f in findings:
+    sev = str(f.get("severity", "UNKNOWN")).upper()
+    severity_counts[sev] = severity_counts.get(sev, 0) + 1
+
+bundle = {
+    "metadata": {
+        "run_id": f"action-{agent}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
+        "target": "${{ inputs.target }}",
+        "provider": "${{ inputs.provider }}",
+        "started_at": datetime.now(UTC).isoformat(),
+        "finished_at": datetime.now(UTC).isoformat(),
+        "files_analyzed": [],
+        "time_budget_seconds": int("${{ inputs.time-budget }}"),
+        "finding_counts": {"total": len(findings), "by_severity": severity_counts},
+    },
+    "findings": findings,
+    "verdict": {},
+}
+Path("results.bundle.json").write_text(json.dumps(bundle, indent=2))
+PY
+
+          python3 - <<'PY'
+import json
+from pathlib import Path
+from adversarial_debate.formatters import FormatterConfig, get_formatter
+
+bundle = json.loads(Path("results.bundle.json").read_text())
+fmt = "${{ inputs.output-format }}"
+out = "${{ inputs.output-file }}"
+
+formatter = get_formatter(fmt, FormatterConfig(tool_name="adversarial-debate"))
+Path(out).write_text(formatter.format(bundle))
+PY
         fi
 
-        echo "findings-count=$FINDINGS" >> $GITHUB_OUTPUT
-        echo "critical-count=$CRITICAL" >> $GITHUB_OUTPUT
-        echo "high-count=$HIGH" >> $GITHUB_OUTPUT
-        echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
-        echo "output-file=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+        set -e
 
-        # Convert to requested format if needed
-        if [ "${{ inputs.output-format }}" = "sarif" ] && [ -f results.json ]; then
-          python3 -c "
-        import json
-        from adversarial_debate.formatters import get_formatter
+        python3 - <<'PY'
+import json
+import os
+from pathlib import Path
 
-        with open('results.json') as f:
-            data = json.load(f)
+bundle = json.loads(Path("results.bundle.json").read_text())
+baseline = bundle.get("baseline") or {}
 
-        formatter = get_formatter('sarif')
-        sarif = formatter.format(data)
+if baseline.get("mode") == "only-new" and isinstance(baseline.get("new"), list):
+    findings = baseline.get("new") or []
+    total = len(findings)
+    by_sev = {}
+    for f in findings:
+        sev = str((f or {}).get("severity", "UNKNOWN")).upper()
+        by_sev[sev] = by_sev.get(sev, 0) + 1
+else:
+    counts = (bundle.get("metadata") or {}).get("finding_counts") or {}
+    by_sev = counts.get("by_severity") or {}
+    total = counts.get("total", 0)
 
-        with open('$OUTPUT_FILE', 'w') as f:
-            f.write(sarif)
-        "
-        fi
+verdict = bundle.get("verdict") or {}
+summary = verdict.get("summary") or {}
+decision = summary.get("decision", "UNKNOWN")
+
+out_path = os.environ["GITHUB_OUTPUT"]
+with open(out_path, "a") as f:
+    f.write(f"findings-count={total}\n")
+    f.write(f"critical-count={by_sev.get('CRITICAL', 0)}\n")
+    f.write(f"high-count={by_sev.get('HIGH', 0)}\n")
+    f.write(f"verdict={decision}\n")
+    f.write(f"output-file=${{ inputs.output-file }}\n")
+PY
+
+        echo "tool-exit=$TOOL_EXIT" >> $GITHUB_OUTPUT
 
     - name: Upload SARIF to GitHub Security
-      if: inputs.output-format == 'sarif' && github.event_name == 'push'
+      if: inputs.output-format == 'sarif'
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: ${{ inputs.output-file }}

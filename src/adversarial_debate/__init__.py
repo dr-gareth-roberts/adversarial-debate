@@ -36,6 +36,7 @@ from .agents import (
     BreakAgent,
     ChaosAgent,
     ChaosOrchestrator,
+    CrossExaminationAgent,
     ExploitAgent,
 )
 from .attack_plan import (
@@ -125,6 +126,7 @@ __all__ = [
     "BreakAgent",
     "ChaosAgent",
     "ChaosOrchestrator",
+    "CrossExaminationAgent",
     "Arbiter",
     # Sandbox
     "SandboxExecutor",

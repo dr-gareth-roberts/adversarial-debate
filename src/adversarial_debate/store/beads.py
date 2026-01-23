@@ -29,6 +29,7 @@ class BeadType(str, Enum):
     EXPLOIT_ANALYSIS = "exploit_analysis"
     CHAOS_ANALYSIS = "chaos_analysis"
     ARBITER_VERDICT = "arbiter_verdict"
+    CROSS_EXAMINATION = "cross_examination"
 
 
 class ArtefactType(str, Enum):
