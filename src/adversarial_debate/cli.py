@@ -648,8 +648,7 @@ async def cmd_verdict(args: argparse.Namespace, config: Config) -> int:
         print(f"False Positives: {summary.get('false_positives', 0)}")
 
         # Print report if available
-        report = output.result.get("report", "")
-        if report:
+        if report := output.result.get("report", ""):
             print(f"\n{report}")
 
     # Save to file if requested
@@ -661,10 +660,7 @@ async def cmd_verdict(args: argparse.Namespace, config: Config) -> int:
         logger.info(f"Verdict saved to {output_path}")
 
     # Return non-zero if should block
-    if output.result.get("summary", {}).get("should_block"):
-        return 2
-
-    return 0
+    return 2 if output.result.get("summary", {}).get("should_block") else 0
 
 
 async def cmd_run(args: argparse.Namespace, config: Config) -> int:
