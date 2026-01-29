@@ -13,17 +13,27 @@ Security hardening applied:
 """
 
 import asyncio
+import contextlib
 import json
 import os
 import re
 import secrets
-import shutil
 import signal
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from ..exceptions import SandboxSecurityError
+
+__all__ = [
+    "ExecutionResult",
+    "SandboxConfig",
+    "SandboxExecutor",
+    "SandboxSecurityError",
+    "validate_sandbox_config",
+]
 
 # =============================================================================
 # SECURITY CONSTANTS AND VALIDATORS
@@ -36,17 +46,63 @@ MAX_INPUT_KEY_LENGTH = 64
 MAX_INPUT_VALUE_SIZE = 1024 * 1024  # 1MB per value
 
 # Valid Python identifier pattern (prevents code injection via variable names)
-SAFE_IDENTIFIER_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+SAFE_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 # Valid Docker resource limit patterns
-MEMORY_LIMIT_PATTERN = re.compile(r'^\d+[kmgKMG]?$')
-TEMP_SIZE_PATTERN = re.compile(r'^\d+[kmgKMG]?$')
-DOCKER_IMAGE_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9._/-]*:[a-zA-Z0-9._-]+$')
+MEMORY_LIMIT_PATTERN = re.compile(r"^\d+[kmgKMG]?$")
+TEMP_SIZE_PATTERN = re.compile(r"^\d+[kmgKMG]?$")
+DOCKER_IMAGE_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._/-]*:[a-zA-Z0-9._-]+$")
 
 
-class SandboxSecurityError(Exception):
-    """Raised when sandbox security validation fails."""
-    pass
+def _parse_size_bytes(value: str) -> int:
+    """Parse sizes like '256m' / '1g' into bytes."""
+    match = re.fullmatch(r"(\d+)([kmgKMG]?)", value.strip())
+    if not match:
+        raise ValueError(f"Invalid size format: {value!r}")
+    amount = int(match.group(1))
+    unit = match.group(2).lower()
+    multiplier = {"": 1, "k": 1024, "m": 1024**2, "g": 1024**3}[unit]
+    return amount * multiplier
+
+
+async def _read_stream_limited(
+    stream: asyncio.StreamReader | None, limit_bytes: int
+) -> tuple[bytes, bool]:
+    """Read a stream fully but retain at most limit_bytes."""
+    if stream is None:
+        return b"", False
+
+    data = bytearray()
+    truncated = False
+
+    while True:
+        chunk = await stream.read(65536)
+        if not chunk:
+            break
+
+        if len(data) < limit_bytes:
+            remaining = limit_bytes - len(data)
+            data.extend(chunk[:remaining])
+            if len(chunk) > remaining:
+                truncated = True
+        else:
+            truncated = True
+            # Drain without buffering.
+
+    return bytes(data), truncated
+
+
+def _decode_and_mark(
+    data: bytes,
+    truncated: bool,
+    *,
+    stream_name: str,
+    prefix: str = "",
+) -> str:
+    text = data.decode("utf-8", errors="replace")
+    if truncated:
+        text += f"\n[{stream_name} truncated]\n"
+    return f"{prefix}{text}" if prefix else text
 
 
 def validate_identifier(name: str, context: str = "identifier") -> None:
@@ -62,18 +118,30 @@ def validate_identifier(name: str, context: str = "identifier") -> None:
     if not name:
         raise SandboxSecurityError(f"Empty {context} not allowed")
     if len(name) > MAX_INPUT_KEY_LENGTH:
-        raise SandboxSecurityError(
-            f"{context} too long: {len(name)} > {MAX_INPUT_KEY_LENGTH}"
-        )
+        raise SandboxSecurityError(f"{context} too long: {len(name)} > {MAX_INPUT_KEY_LENGTH}")
     if not SAFE_IDENTIFIER_PATTERN.match(name):
         raise SandboxSecurityError(
             f"Invalid {context}: must be valid Python identifier, got {name!r}"
         )
     # Block Python keywords and builtins that could be dangerous
     dangerous_names = {
-        'exec', 'eval', 'compile', 'open', 'input', '__import__',
-        'globals', 'locals', 'vars', 'dir', 'getattr', 'setattr',
-        'delattr', 'hasattr', '__builtins__', '__name__', '__file__',
+        "exec",
+        "eval",
+        "compile",
+        "open",
+        "input",
+        "__import__",
+        "globals",
+        "locals",
+        "vars",
+        "dir",
+        "getattr",
+        "setattr",
+        "delattr",
+        "hasattr",
+        "__builtins__",
+        "__name__",
+        "__file__",
     }
     if name in dangerous_names:
         raise SandboxSecurityError(f"Dangerous {context} name: {name!r}")
@@ -88,7 +156,7 @@ def validate_code_size(code: str) -> None:
     Raises:
         SandboxSecurityError: If code exceeds size limit
     """
-    if len(code.encode('utf-8')) > MAX_CODE_SIZE:
+    if len(code.encode("utf-8")) > MAX_CODE_SIZE:
         raise SandboxSecurityError(
             f"Code too large: {len(code.encode('utf-8'))} > {MAX_CODE_SIZE} bytes"
         )
@@ -114,19 +182,17 @@ def validate_inputs(inputs: dict[str, Any] | None) -> None:
         # Validate value size
         try:
             serialized = json.dumps(value)
-            value_size = len(serialized.encode('utf-8'))
+            value_size = len(serialized.encode("utf-8"))
             if value_size > MAX_INPUT_VALUE_SIZE:
                 raise SandboxSecurityError(
                     f"Input value for '{key}' too large: {value_size} > {MAX_INPUT_VALUE_SIZE}"
                 )
             total_size += value_size
         except (TypeError, ValueError) as e:
-            raise SandboxSecurityError(f"Input value for '{key}' not JSON serializable: {e}")
+            raise SandboxSecurityError(f"Input value for '{key}' not JSON serializable: {e}") from e
 
     if total_size > MAX_INPUT_SIZE:
-        raise SandboxSecurityError(
-            f"Total input size too large: {total_size} > {MAX_INPUT_SIZE}"
-        )
+        raise SandboxSecurityError(f"Total input size too large: {total_size} > {MAX_INPUT_SIZE}")
 
 
 def validate_path_for_mount(path: Path) -> None:
@@ -149,11 +215,11 @@ def validate_path_for_mount(path: Path) -> None:
 
     # Check for path traversal attempts in the string
     path_str = str(path)
-    if '..' in path_str:
+    if ".." in path_str:
         raise SandboxSecurityError(f"Path traversal detected: {path}")
 
     # Check for shell metacharacters that could enable injection
-    dangerous_chars = set(';&|`$(){}[]<>\\\'\"')
+    dangerous_chars = set(";&|`$(){}[]<>\\'\"")
     if any(c in path_str for c in dangerous_chars):
         raise SandboxSecurityError(f"Dangerous characters in path: {path}")
 
@@ -211,7 +277,7 @@ def generate_secure_temp_name(prefix: str = "sandbox") -> str:
     return f"{prefix}_{random_part}.py"
 
 
-def validate_sandbox_config(config: 'SandboxConfig') -> None:
+def validate_sandbox_config(config: "SandboxConfig") -> None:
     """Validate SandboxConfig values are safe.
 
     Args:
@@ -222,21 +288,15 @@ def validate_sandbox_config(config: 'SandboxConfig') -> None:
     """
     # Validate memory limit format
     if not MEMORY_LIMIT_PATTERN.match(config.memory_limit):
-        raise SandboxSecurityError(
-            f"Invalid memory_limit format: {config.memory_limit}"
-        )
+        raise SandboxSecurityError(f"Invalid memory_limit format: {config.memory_limit}")
 
     # Validate temp size format
     if not TEMP_SIZE_PATTERN.match(config.temp_size):
-        raise SandboxSecurityError(
-            f"Invalid temp_size format: {config.temp_size}"
-        )
+        raise SandboxSecurityError(f"Invalid temp_size format: {config.temp_size}")
 
     # Validate CPU limit range
     if not 0.0 < config.cpu_limit <= 16.0:
-        raise SandboxSecurityError(
-            f"cpu_limit must be in (0, 16], got {config.cpu_limit}"
-        )
+        raise SandboxSecurityError(f"cpu_limit must be in (0, 16], got {config.cpu_limit}")
 
     # Validate timeout range
     if not 1 <= config.timeout_seconds <= 300:
@@ -251,25 +311,35 @@ def validate_sandbox_config(config: 'SandboxConfig') -> None:
 
     # Validate Docker image format (prevent injection)
     if config.use_docker and not DOCKER_IMAGE_PATTERN.match(config.docker_image):
-        raise SandboxSecurityError(
-            f"Invalid docker_image format: {config.docker_image}"
-        )
+        raise SandboxSecurityError(f"Invalid docker_image format: {config.docker_image}")
 
     # Validate allowed hosts don't contain injection attempts
     for host in config.allowed_hosts:
-        if not re.match(r'^[a-zA-Z0-9.-]+$', host):
-            raise SandboxSecurityError(
-                f"Invalid allowed_host format: {host}"
-            )
+        if not re.match(r"^[a-zA-Z0-9.-]+$", host):
+            raise SandboxSecurityError(f"Invalid allowed_host format: {host}")
+
+    # Avoid a false sense of safety: allowlisting is not enforced.
+    if config.network_enabled and config.allowed_hosts:
+        raise SandboxSecurityError(
+            "allowed_hosts is not enforced when network_enabled=True; "
+            "either disable network or leave allowed_hosts empty"
+        )
+
+    if config.max_output_size_bytes <= 0:
+        raise SandboxSecurityError(
+            f"max_output_size_bytes must be > 0, got {config.max_output_size_bytes}"
+        )
 
 
 @dataclass
 class SandboxConfig:
     """Configuration for sandbox execution."""
+
     # Resource limits
     memory_limit: str = "256m"
     cpu_limit: float = 0.5
     timeout_seconds: int = 30
+    max_output_size_bytes: int = 1024 * 1024  # 1MB per stream (stdout/stderr)
 
     # Network policy
     network_enabled: bool = False
@@ -287,10 +357,27 @@ class SandboxConfig:
     use_subprocess: bool = True
     subprocess_timeout: int = 10
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "memory_limit": self.memory_limit,
+            "cpu_limit": self.cpu_limit,
+            "timeout_seconds": self.timeout_seconds,
+            "max_output_size_bytes": self.max_output_size_bytes,
+            "network_enabled": self.network_enabled,
+            "allowed_hosts": self.allowed_hosts,
+            "read_only": self.read_only,
+            "temp_size": self.temp_size,
+            "use_docker": self.use_docker,
+            "docker_image": self.docker_image,
+            "use_subprocess": self.use_subprocess,
+            "subprocess_timeout": self.subprocess_timeout,
+        }
+
 
 @dataclass
 class ExecutionResult:
     """Result from sandbox execution."""
+
     success: bool
     output: str
     error: str = ""
@@ -414,7 +501,7 @@ class SandboxExecutor:
         Returns:
             ExecutionResult indicating if exploit succeeded
         """
-        combined_code = f'''
+        combined_code = f"""
 # Target code
 {target_code}
 
@@ -424,7 +511,7 @@ try:
     print("EXPLOIT_SUCCESS")
 except Exception as e:
     print(f"EXPLOIT_FAILED: {{e}}")
-'''
+"""
         return await self.execute_python(combined_code, timeout=timeout)
 
     async def verify_finding(
@@ -513,7 +600,7 @@ except Exception as e:
                 content_lines.append(code)
                 content = "\n".join(content_lines)
 
-                os.write(fd, content.encode('utf-8'))
+                os.write(fd, content.encode("utf-8"))
             finally:
                 if fd is not None:
                     os.close(fd)
@@ -525,7 +612,8 @@ except Exception as e:
 
             # Build docker command - all values have been validated
             cmd = [
-                "docker", "run",
+                "docker",
+                "run",
                 "--rm",
                 f"--memory={self.config.memory_limit}",
                 f"--cpus={self.config.cpu_limit}",
@@ -534,9 +622,11 @@ except Exception as e:
                 f"--tmpfs=/tmp:size={self.config.temp_size}",
                 "--security-opt=no-new-privileges",
                 # Use absolute path for volume mount (already validated)
-                "-v", f"{temp_file}:/code/script.py:ro",
+                "-v",
+                f"{temp_file}:/code/script.py:ro",
                 self.config.docker_image,
-                "python", "/code/script.py",
+                "python",
+                "/code/script.py",
             ]
             # Filter out empty strings
             cmd = [c for c in cmd if c]
@@ -547,39 +637,50 @@ except Exception as e:
                 stderr=asyncio.subprocess.PIPE,
             )
 
+            stdout_task = asyncio.create_task(
+                _read_stream_limited(proc.stdout, self.config.max_output_size_bytes)
+            )
+            stderr_task = asyncio.create_task(
+                _read_stream_limited(proc.stderr, self.config.max_output_size_bytes)
+            )
+
+            timed_out = False
             try:
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(),
-                    timeout=timeout,
-                )
-                elapsed = int((time.monotonic() - start_time) * 1000)
-
-                return ExecutionResult(
-                    success=proc.returncode == 0,
-                    output=stdout.decode("utf-8", errors="replace"),
-                    error=stderr.decode("utf-8", errors="replace"),
-                    exit_code=proc.returncode or 0,
-                    timed_out=False,
-                    execution_time_ms=elapsed,
-                )
-
+                await asyncio.wait_for(proc.wait(), timeout=timeout)
             except TimeoutError:
                 # Use SIGKILL for reliable termination (SIGTERM may be ignored)
-                try:
+                with contextlib.suppress(ProcessLookupError):
                     proc.send_signal(signal.SIGKILL)
-                except ProcessLookupError:
-                    pass  # Process already terminated
                 await proc.wait()
-                elapsed = int((time.monotonic() - start_time) * 1000)
+                timed_out = True
 
+            stdout, stdout_truncated = await stdout_task
+            stderr, stderr_truncated = await stderr_task
+            elapsed = int((time.monotonic() - start_time) * 1000)
+
+            if timed_out:
                 return ExecutionResult(
                     success=False,
-                    output="",
-                    error=f"Execution timed out after {timeout}s",
+                    output=_decode_and_mark(stdout, stdout_truncated, stream_name="stdout"),
+                    error=_decode_and_mark(
+                        stderr,
+                        stderr_truncated,
+                        stream_name="stderr",
+                        prefix=f"Execution timed out after {timeout}s\n",
+                    ),
                     exit_code=-1,
                     timed_out=True,
                     execution_time_ms=elapsed,
                 )
+
+            return ExecutionResult(
+                success=proc.returncode == 0,
+                output=_decode_and_mark(stdout, stdout_truncated, stream_name="stdout"),
+                error=_decode_and_mark(stderr, stderr_truncated, stream_name="stderr"),
+                exit_code=proc.returncode or 0,
+                timed_out=False,
+                execution_time_ms=elapsed,
+            )
 
         except SandboxSecurityError as e:
             return ExecutionResult(
@@ -589,11 +690,9 @@ except Exception as e:
             )
         finally:
             # Clean up temp file securely
-            if temp_file and os.path.exists(temp_file):
-                try:
+            if temp_file:
+                with contextlib.suppress(OSError):
                     os.unlink(temp_file)
-                except OSError:
-                    pass  # Best effort cleanup
 
     async def _execute_subprocess_python(
         self,
@@ -634,78 +733,97 @@ except Exception as e:
                 content_lines.append(code)
                 content = "\n".join(content_lines)
 
-                os.write(fd, content.encode('utf-8'))
+                os.write(fd, content.encode("utf-8"))
             finally:
                 if fd is not None:
                     os.close(fd)
 
             # Use resource limits if available (Unix only)
             preexec_fn = None
-            if hasattr(os, "setrlimit"):
+            try:
                 import resource
+            except ImportError:  # pragma: no cover (Windows)
+                resource = None  # type: ignore[assignment]
+
+            if resource is not None:
+                memory_bytes = _parse_size_bytes(self.config.memory_limit)
 
                 def set_limits() -> None:
-                    # Limit memory to 256MB
-                    resource.setrlimit(
-                        resource.RLIMIT_AS,
-                        (256 * 1024 * 1024, 256 * 1024 * 1024),
-                    )
-                    # Limit CPU time
-                    resource.setrlimit(
-                        resource.RLIMIT_CPU,
-                        (timeout, timeout + 1),
-                    )
+                    # Address space / virtual memory cap (best-effort; not supported everywhere).
+                    try:
+                        resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+                    except (OSError, ValueError):
+                        # Some platforms (notably macOS) may reject RLIMIT_AS/RLIMIT_DATA changes.
+                        with contextlib.suppress(OSError, ValueError, AttributeError):
+                            resource.setrlimit(resource.RLIMIT_DATA, (memory_bytes, memory_bytes))
+
+                    # Limit CPU time (generally supported).
+                    with contextlib.suppress(OSError, ValueError):
+                        resource.setrlimit(resource.RLIMIT_CPU, (timeout, timeout + 1))
 
                 preexec_fn = set_limits
 
             proc = await asyncio.create_subprocess_exec(
-                "python3", temp_file,
+                "python3",
+                temp_file,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 preexec_fn=preexec_fn,
             )
 
+            stdout_task = asyncio.create_task(
+                _read_stream_limited(proc.stdout, self.config.max_output_size_bytes)
+            )
+            stderr_task = asyncio.create_task(
+                _read_stream_limited(proc.stderr, self.config.max_output_size_bytes)
+            )
+
+            timed_out = False
             try:
-                stdout, stderr = await asyncio.wait_for(
-                    proc.communicate(),
+                await asyncio.wait_for(
+                    proc.wait(),
                     timeout=min(timeout, self.config.subprocess_timeout),
                 )
-                elapsed = int((time.monotonic() - start_time) * 1000)
-
-                return ExecutionResult(
-                    success=proc.returncode == 0,
-                    output=stdout.decode("utf-8", errors="replace"),
-                    error=stderr.decode("utf-8", errors="replace"),
-                    exit_code=proc.returncode or 0,
-                    timed_out=False,
-                    execution_time_ms=elapsed,
-                )
-
             except TimeoutError:
                 # Use SIGKILL for reliable termination (SIGTERM may be ignored)
-                try:
+                with contextlib.suppress(ProcessLookupError):
                     proc.send_signal(signal.SIGKILL)
-                except ProcessLookupError:
-                    pass  # Process already terminated
                 await proc.wait()
-                elapsed = int((time.monotonic() - start_time) * 1000)
+                timed_out = True
 
+            stdout, stdout_truncated = await stdout_task
+            stderr, stderr_truncated = await stderr_task
+            elapsed = int((time.monotonic() - start_time) * 1000)
+
+            if timed_out:
                 return ExecutionResult(
                     success=False,
-                    output="",
-                    error=f"Execution timed out after {timeout}s",
+                    output=_decode_and_mark(stdout, stdout_truncated, stream_name="stdout"),
+                    error=_decode_and_mark(
+                        stderr,
+                        stderr_truncated,
+                        stream_name="stderr",
+                        prefix=f"Execution timed out after {timeout}s\n",
+                    ),
                     exit_code=-1,
                     timed_out=True,
                     execution_time_ms=elapsed,
                 )
 
+            return ExecutionResult(
+                success=proc.returncode == 0,
+                output=_decode_and_mark(stdout, stdout_truncated, stream_name="stdout"),
+                error=_decode_and_mark(stderr, stderr_truncated, stream_name="stderr"),
+                exit_code=proc.returncode or 0,
+                timed_out=False,
+                execution_time_ms=elapsed,
+            )
+
         finally:
             # Clean up temp file securely
-            if temp_file and os.path.exists(temp_file):
-                try:
+            if temp_file:
+                with contextlib.suppress(OSError):
                     os.unlink(temp_file)
-                except OSError:
-                    pass  # Best effort cleanup
 
     async def test_boundary_value(
         self,
@@ -728,7 +846,7 @@ except Exception as e:
         # Validate parameters to prevent code injection
         validate_test_params(function_name=function_name, argument_name=argument_name)
 
-        test_code = f'''
+        test_code = f"""
 {target_code}
 
 # Test with boundary value
@@ -737,7 +855,7 @@ try:
     print(f"RESULT: {{result}}")
 except Exception as e:
     print(f"EXCEPTION: {{type(e).__name__}}: {{e}}")
-'''
+"""
         return await self.execute_python(test_code)
 
     async def test_concurrency(
@@ -759,7 +877,7 @@ except Exception as e:
         # Validate parameters to prevent code injection
         validate_test_params(function_name=function_name)
 
-        test_code = f'''
+        test_code = f"""
 import asyncio
 import threading
 
@@ -785,7 +903,7 @@ for t in threads:
 print(f"RESULTS: {{len(results)}} successes, {{len(errors)}} errors")
 if errors:
     print(f"ERRORS: {{errors[:5]}}")
-'''
+"""
         return await self.execute_python(test_code, timeout=30)
 
     # =========================================================================
@@ -820,44 +938,55 @@ if errors:
                 "1 UNION SELECT * FROM users --",
             ]
 
-        test_code = f'''
+        payloads_json = json.dumps(payloads)
+        template = '''
 import sqlite3
 
 # Create test database
-conn = sqlite3.connect(':memory:')
+conn = sqlite3.connect(":memory:")
 cursor = conn.cursor()
-cursor.execute('CREATE TABLE users (id INTEGER, name TEXT, password TEXT)')
-cursor.execute("INSERT INTO users VALUES (1, 'admin', 'secret123')")
-cursor.execute("INSERT INTO users VALUES (2, 'user', 'password')")
+conn.executescript(
+    """
+    CREATE TABLE users (id INTEGER, name TEXT, password TEXT);
+    INSERT INTO users VALUES (1, 'admin', 'secret123');
+    INSERT INTO users VALUES (2, 'user', 'password');
+    """
+)
 conn.commit()
 
-{target_code}
+__ADVERSARIAL_DEBATE_TARGET_CODE__
 
-payloads = {json.dumps(payloads)}
+payloads = __ADVERSARIAL_DEBATE_PAYLOADS_JSON__
 vulnerabilities_found = []
 
 for payload in payloads:
     try:
-        result = {function_name}({param_name}=payload)
+        result = __ADVERSARIAL_DEBATE_FUNCTION_NAME__(__ADVERSARIAL_DEBATE_PARAM_NAME__=payload)
         # Check if we got more results than expected (injection success)
-        if hasattr(result, '__len__') and len(result) > 1:
-            vulnerabilities_found.append(f"Payload '{{payload}}' returned {{len(result)}} rows")
+        if hasattr(result, "__len__") and len(result) > 1:
+            vulnerabilities_found.append(f"Payload '{payload}' returned {len(result)} rows")
         elif result is not None:
-            vulnerabilities_found.append(f"Payload '{{payload}}' executed successfully")
+            vulnerabilities_found.append(f"Payload '{payload}' executed successfully")
     except Exception as e:
         # SQL error might indicate partial injection
         if "syntax" in str(e).lower():
-            print(f"SYNTAX_ERROR: {{payload}}")
+            print(f"SYNTAX_ERROR: {payload}")
 
 if vulnerabilities_found:
     print("SQL_INJECTION_FOUND")
     for v in vulnerabilities_found:
-        print(f"  {{v}}")
+        print(f"  {v}")
 else:
     print("NO_INJECTION_FOUND")
 
 conn.close()
 '''
+        test_code = (
+            template.replace("__ADVERSARIAL_DEBATE_TARGET_CODE__", target_code)
+            .replace("__ADVERSARIAL_DEBATE_PAYLOADS_JSON__", payloads_json)
+            .replace("__ADVERSARIAL_DEBATE_FUNCTION_NAME__", function_name)
+            .replace("__ADVERSARIAL_DEBATE_PARAM_NAME__", param_name)
+        )
         return await self.execute_python(test_code)
 
     async def test_command_injection(
@@ -891,7 +1020,7 @@ conn.close()
                 "`echo INJECTED`",
             ]
 
-        test_code = f'''
+        test_code = f"""
 import subprocess
 
 {target_code}
@@ -912,7 +1041,7 @@ for payload in payloads:
 
 if not injection_found:
     print("NO_INJECTION_FOUND")
-'''
+"""
         return await self.execute_python(test_code)
 
     async def test_path_traversal(
@@ -943,7 +1072,7 @@ if not injection_found:
                 "..\\\\..\\\\..\\\\etc\\\\passwd",
             ]
 
-        test_code = f'''
+        test_code = f"""
 import os
 import tempfile
 
@@ -981,7 +1110,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
     if not traversal_found:
         print("NO_TRAVERSAL_FOUND")
-'''
+"""
         return await self.execute_python(test_code)
 
     async def test_ssrf(
@@ -1015,7 +1144,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
                 "file:///etc/passwd",
             ]
 
-        test_code = f'''
+        test_code = f"""
 # Mock requests to track what URLs are attempted
 attempted_urls = []
 
@@ -1059,7 +1188,7 @@ if ssrf_possible:
         print(f"  {{s}}")
 else:
     print("NO_SSRF_FOUND")
-'''
+"""
         return await self.execute_python(test_code)
 
     async def test_deserialization(
@@ -1091,7 +1220,7 @@ else:
         # Validate parameters to prevent code injection
         validate_test_params(function_name=function_name, param_name=param_name)
 
-        test_code = f'''
+        test_code = f"""
 import pickle
 import base64
 
@@ -1109,7 +1238,7 @@ try:
     print("DESERIALIZATION_COMPLETE")
 except Exception as e:
     print(f"DESERIALIZATION_ERROR: {{e}}")
-'''
+"""
         result = await self.execute_python(test_code)
 
         # Check if the pickle payload executed
@@ -1215,7 +1344,7 @@ if errors_caught:
         # Validate parameters to prevent code injection
         validate_test_params(function_name=function_name)
 
-        test_code = f'''
+        test_code = f"""
 import time
 import threading
 
@@ -1255,7 +1384,7 @@ elif elapsed > {expected_timeout_seconds}:
     print(f"SLOW_TIMEOUT: Took {{elapsed:.1f}}s (expected < {expected_timeout_seconds}s)")
 else:
     print(f"TIMEOUT_OK: Completed in {{elapsed:.1f}}s")
-'''
+"""
         return await self.execute_python(test_code, timeout=int(expected_timeout_seconds + 5))
 
     async def test_retry_behavior(
@@ -1277,7 +1406,7 @@ else:
         # Validate parameters to prevent code injection
         validate_test_params(function_name=function_name)
 
-        test_code = f'''
+        test_code = f"""
 call_count = 0
 FAILURE_COUNT = {failure_count}
 
@@ -1306,7 +1435,7 @@ except Exception as e:
         print("NO_RETRY: Function doesn't retry on failure")
     else:
         print(f"INSUFFICIENT_RETRIES: Only {{call_count}} attempts before giving up")
-'''
+"""
         return await self.execute_python(test_code)
 
     async def test_circuit_breaker(
@@ -1328,7 +1457,7 @@ except Exception as e:
         # Validate parameters to prevent code injection
         validate_test_params(function_name=function_name)
 
-        test_code = f'''
+        test_code = f"""
 import time
 
 call_count = 0
@@ -1360,7 +1489,7 @@ if external_call_count < {failure_threshold * 3}:
 else:
     print("NO_CIRCUIT_BREAKER: All calls attempted external service")
     print("VULNERABILITY: No circuit breaker protection")
-'''
+"""
         return await self.execute_python(test_code)
 
     async def test_resource_cleanup(
@@ -1451,15 +1580,27 @@ else:
         # Validate parameters to prevent code injection
         validate_test_params(function_name=function_name)
         # Validate degradation_check is a safe expression (no dangerous operations)
-        if any(danger in degradation_check for danger in [
-            'import', 'exec', 'eval', 'compile', 'open', '__', 'os.',
-            'subprocess', 'system', 'popen', 'spawn'
-        ]):
+        if any(
+            danger in degradation_check
+            for danger in [
+                "import",
+                "exec",
+                "eval",
+                "compile",
+                "open",
+                "__",
+                "os.",
+                "subprocess",
+                "system",
+                "popen",
+                "spawn",
+            ]
+        ):
             raise SandboxSecurityError(
                 f"Dangerous pattern in degradation_check: {degradation_check}"
             )
 
-        test_code = f'''
+        test_code = f"""
 # Mock primary service as unavailable
 primary_available = False
 
@@ -1480,7 +1621,7 @@ try:
 except Exception as e:
     print(f"NO_DEGRADATION: Exception propagated: {{type(e).__name__}}: {{e}}")
     print("VULNERABILITY: No fallback when primary fails")
-'''
+"""
         return await self.execute_python(test_code)
 
     async def test_memory_pressure(
@@ -1502,7 +1643,7 @@ except Exception as e:
         # Validate parameters to prevent code injection
         validate_test_params(function_name=function_name)
 
-        test_code = f'''
+        test_code = f"""
 import sys
 import gc
 
@@ -1532,7 +1673,7 @@ except Exception as e:
 # Clean up
 memory_hog.clear()
 gc.collect()
-'''
+"""
         return await self.execute_python(test_code, timeout=30)
 
     async def test_concurrent_access(
@@ -1556,19 +1697,29 @@ gc.collect()
         """
         # Validate parameters to prevent code injection
         validate_test_params(function_name=function_name)
-        # Validate shared_state_check if provided
-        if shared_state_check is not None:
-            if any(danger in shared_state_check for danger in [
-                'import', 'exec', 'eval', 'compile', 'open', '__', 'os.',
-                'subprocess', 'system', 'popen', 'spawn'
-            ]):
-                raise SandboxSecurityError(
-                    f"Dangerous pattern in shared_state_check: {shared_state_check}"
-                )
+        dangerous_tokens = (
+            "import",
+            "exec",
+            "eval",
+            "compile",
+            "open",
+            "__",
+            "os.",
+            "subprocess",
+            "system",
+            "popen",
+            "spawn",
+        )
+        if shared_state_check is not None and any(
+            token in shared_state_check for token in dangerous_tokens
+        ):
+            raise SandboxSecurityError(
+                f"Dangerous pattern in shared_state_check: {shared_state_check}"
+            )
 
-        test_code = f'''
-import threading
-import time
+        test_code = f"""
+	import threading
+	import time
 
 {target_code}
 
@@ -1617,5 +1768,5 @@ if results:
         print("POTENTIAL_RACE_CONDITION: Results vary under concurrent access")
     else:
         print("CONSISTENT_RESULTS: All workers got same result")
-'''
+"""
         return await self.execute_python(test_code, timeout=30)

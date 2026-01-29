@@ -7,6 +7,8 @@ Supports multiple output formats for integration with various tools:
 - Markdown: Documentation-friendly output
 """
 
+from collections.abc import Callable
+
 from .base import Formatter, FormatterConfig, OutputFormat
 from .html import HTMLFormatter
 from .json import JSONFormatter
@@ -14,7 +16,10 @@ from .markdown import MarkdownFormatter
 from .sarif import SARIFFormatter
 
 
-def get_formatter(format_type: str | OutputFormat, config: FormatterConfig | None = None) -> Formatter:
+def get_formatter(
+    format_type: str | OutputFormat,
+    config: FormatterConfig | None = None,
+) -> Formatter:
     """Get a formatter by type.
 
     Args:
@@ -27,21 +32,20 @@ def get_formatter(format_type: str | OutputFormat, config: FormatterConfig | Non
     if isinstance(format_type, str):
         format_type = OutputFormat(format_type.lower())
 
-    formatters = {
+    formatter_factories: dict[OutputFormat, Callable[[FormatterConfig | None], Formatter]] = {
         OutputFormat.JSON: JSONFormatter,
         OutputFormat.SARIF: SARIFFormatter,
         OutputFormat.HTML: HTMLFormatter,
         OutputFormat.MARKDOWN: MarkdownFormatter,
     }
 
-    formatter_class = formatters.get(format_type)
-    if formatter_class is None:
+    factory = formatter_factories.get(format_type)
+    if factory is None:
         raise ValueError(
-            f"Unknown format: {format_type}. "
-            f"Available: {', '.join(f.value for f in OutputFormat)}"
+            f"Unknown format: {format_type}. Available: {', '.join(f.value for f in OutputFormat)}"
         )
 
-    return formatter_class(config)
+    return factory(config)
 
 
 __all__ = [

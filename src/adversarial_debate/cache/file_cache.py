@@ -1,5 +1,6 @@
 """File-based cache storage for analysis results."""
 
+import contextlib
 import json
 import os
 from dataclasses import dataclass, field
@@ -11,6 +12,7 @@ from typing import Any
 @dataclass
 class CacheEntry:
     """A cached analysis result."""
+
     key: str
     agent_name: str
     file_path: str
@@ -82,12 +84,29 @@ class FileCache:
 
     def _ensure_cache_dir(self) -> None:
         """Create cache directory if it doesn't exist."""
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        secure_dir_mode = 0o700
+        secure_file_mode = 0o600
+
+        self.cache_dir.mkdir(parents=True, exist_ok=True, mode=secure_dir_mode)
+        with contextlib.suppress(OSError):
+            os.chmod(self.cache_dir, secure_dir_mode)
 
         # Add .gitignore to prevent committing cache
         gitignore = self.cache_dir / ".gitignore"
         if not gitignore.exists():
-            gitignore.write_text("*\n!.gitignore\n")
+            try:
+                fd = os.open(
+                    str(gitignore),
+                    os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                    secure_file_mode,
+                )
+            except FileExistsError:
+                pass
+            else:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write("*\n!.gitignore\n")
+                with contextlib.suppress(OSError):
+                    os.chmod(gitignore, secure_file_mode)
 
     def _key_to_path(self, key: str) -> Path:
         """Convert a cache key to a file path."""
@@ -159,10 +178,17 @@ class FileCache:
         )
 
         path = self._key_to_path(key)
-        path.parent.mkdir(parents=True, exist_ok=True)
+        secure_dir_mode = 0o700
+        secure_file_mode = 0o600
+        path.parent.mkdir(parents=True, exist_ok=True, mode=secure_dir_mode)
+        with contextlib.suppress(OSError):
+            os.chmod(path.parent, secure_dir_mode)
 
-        with open(path, "w") as f:
+        fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, secure_file_mode)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(entry.to_dict(), f, indent=2, default=str)
+        with contextlib.suppress(OSError):
+            os.chmod(path, secure_file_mode)
 
         return entry
 

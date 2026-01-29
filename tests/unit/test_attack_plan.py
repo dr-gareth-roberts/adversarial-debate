@@ -4,15 +4,15 @@ import pytest
 
 from adversarial_debate.attack_plan import (
     AgentType,
-    AttackPriority,
-    RiskLevel,
-    AttackVector,
     Attack,
-    ParallelGroup,
-    SkipReason,
-    FileRiskProfile,
-    AttackSurface,
     AttackPlan,
+    AttackPriority,
+    AttackSurface,
+    AttackVector,
+    FileRiskProfile,
+    ParallelGroup,
+    RiskLevel,
+    SkipReason,
 )
 
 

@@ -43,4 +43,3 @@ def test_build_results_bundle_normalizes_findings() -> None:
     assert finding["cwe"] == 89
     assert finding["file_path"] == "a.py"
     assert finding["line"] == 10
-

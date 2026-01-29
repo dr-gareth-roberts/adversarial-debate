@@ -14,13 +14,16 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from . import __version__
 from .config import Config, set_config
 from .logging import get_logger, setup_logging
 
 logger = get_logger(__name__)
+
+if TYPE_CHECKING:
+    from .providers import LLMProvider
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -59,7 +62,8 @@ Examples:
     )
 
     parser.add_argument(
-        "-c", "--config",
+        "-c",
+        "--config",
         type=str,
         help="Path to configuration file",
         metavar="FILE",
@@ -85,7 +89,8 @@ Examples:
     )
 
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         type=str,
         help="Output file or directory",
         metavar="PATH",
@@ -178,6 +183,12 @@ Examples:
         "target",
         type=str,
         help="File or directory to analyze",
+    )
+    run_parser.add_argument(
+        "--output",
+        type=str,
+        help="Output directory for run artifacts",
+        metavar="PATH",
     )
     run_parser.add_argument(
         "--files",
@@ -332,10 +343,25 @@ def print_error(message: str) -> None:
     print(f"Error: {message}", file=sys.stderr)
 
 
+def _get_provider_from_config(config: Config) -> LLMProvider:
+    from .providers import ProviderConfig as RuntimeProviderConfig
+    from .providers import get_provider
+
+    runtime_config = RuntimeProviderConfig(
+        api_key=config.provider.api_key,
+        base_url=config.provider.base_url,
+        model=config.provider.model,
+        temperature=config.provider.temperature,
+        max_tokens=config.provider.max_tokens,
+        timeout=float(config.provider.timeout_seconds),
+        extra={"max_retries": config.provider.max_retries, **config.provider.extra},
+    )
+    return get_provider(config.provider.provider, runtime_config)
+
+
 async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
     """Run a single agent analysis."""
-    from .agents import AgentContext, BreakAgent, ChaosAgent, ExploitAgent
-    from .providers import get_provider
+    from .agents import Agent, AgentContext, BreakAgent, ChaosAgent, ExploitAgent
     from .store import BeadStore
 
     target_path = Path(args.target)
@@ -368,21 +394,20 @@ async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
         print(f"Would run {agent_names[args.agent]} on {len(files)} file(s)")
         return 0
 
-    # Select agent
-    agent_map = {
-        "exploit": ExploitAgent,
-        "break": BreakAgent,
-        "chaos": ChaosAgent,
-    }
-    agent_class = agent_map[args.agent]
-
     # Create provider, bead store, and agent
-    provider = get_provider(config.provider.provider)
+    provider = _get_provider_from_config(config)
     bead_store = BeadStore(config.bead_ledger_path)
-    agent = agent_class(provider, bead_store)
+    agent: Agent
+    if args.agent == "exploit":
+        agent = ExploitAgent(provider, bead_store)
+    elif args.agent == "break":
+        agent = BreakAgent(provider, bead_store)
+    else:
+        agent = ChaosAgent(provider, bead_store)
 
     # Create context
     from datetime import UTC, datetime
+
     context = AgentContext(
         run_id=f"cli-{args.agent}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
         timestamp_iso=datetime.now(UTC).isoformat(),
@@ -441,7 +466,6 @@ async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
 async def cmd_orchestrate(args: argparse.Namespace, config: Config) -> int:
     """Create an attack plan."""
     from .agents import AgentContext, ChaosOrchestrator
-    from .providers import get_provider
     from .store import BeadStore
 
     target_path = Path(args.target)
@@ -472,12 +496,13 @@ async def cmd_orchestrate(args: argparse.Namespace, config: Config) -> int:
         return 0
 
     # Create provider, bead store, and orchestrator
-    provider = get_provider(config.provider.provider)
+    provider = _get_provider_from_config(config)
     bead_store = BeadStore(config.bead_ledger_path)
     orchestrator = ChaosOrchestrator(provider, bead_store)
 
     # Create context
     from datetime import UTC, datetime
+
     context = AgentContext(
         run_id=f"cli-orchestrate-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
         timestamp_iso=datetime.now(UTC).isoformat(),
@@ -540,7 +565,6 @@ async def cmd_orchestrate(args: argparse.Namespace, config: Config) -> int:
 async def cmd_verdict(args: argparse.Namespace, config: Config) -> int:
     """Run arbiter on findings."""
     from .agents import AgentContext, Arbiter
-    from .providers import get_provider
     from .store import BeadStore
 
     findings_path = Path(args.findings)
@@ -574,12 +598,13 @@ async def cmd_verdict(args: argparse.Namespace, config: Config) -> int:
                 additional_context = json.load(f)
 
     # Create provider, bead store, and arbiter
-    provider = get_provider(config.provider.provider)
+    provider = _get_provider_from_config(config)
     bead_store = BeadStore(config.bead_ledger_path)
     arbiter = Arbiter(provider, bead_store)
 
     # Create context
     from datetime import UTC, datetime
+
     context = AgentContext(
         run_id=f"cli-verdict-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}",
         timestamp_iso=datetime.now(UTC).isoformat(),
@@ -645,6 +670,7 @@ async def cmd_verdict(args: argparse.Namespace, config: Config) -> int:
 async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     """Run the full pipeline."""
     from .agents import (
+        Agent,
         AgentContext,
         AgentOutput,
         Arbiter,
@@ -653,7 +679,6 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         ChaosOrchestrator,
         ExploitAgent,
     )
-    from .providers import get_provider
     from .store import BeadStore
 
     target_path = Path(args.target)
@@ -709,7 +734,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         return 0
 
     # Create provider, bead store, and agents
-    provider = get_provider(config.provider.provider)
+    provider = _get_provider_from_config(config)
     bead_store = BeadStore(config.bead_ledger_path)
     orchestrator = ChaosOrchestrator(provider, bead_store)
     exploit = ExploitAgent(provider, bead_store)
@@ -718,6 +743,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     arbiter = Arbiter(provider, bead_store)
 
     from datetime import UTC, datetime
+
     timestamp = datetime.now(UTC)
     run_id = f"cli-run-{timestamp.strftime('%Y%m%d%H%M%S')}"
     run_dir = Path(config.output_dir) / f"run-{timestamp.strftime('%Y%m%d%H%M%S')}"
@@ -752,7 +778,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         "file_paths": files,
     }
 
-    async def run_agent(agent: Any, task_id: str) -> AgentOutput:
+    async def run_agent(agent: Agent, task_id: str) -> AgentOutput:
         context = AgentContext(
             run_id=run_id,
             timestamp_iso=timestamp.isoformat(),
@@ -765,7 +791,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
 
     sem = asyncio.Semaphore(max(1, args.parallel))
 
-    async def with_limit(agent: Any, task_id: str) -> AgentOutput:
+    async def with_limit(agent: Agent, task_id: str) -> AgentOutput:
         async with sem:
             return await run_agent(agent, task_id)
 
@@ -812,8 +838,8 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     debated_findings = None
     debate_output = None
     if not args.skip_debate and not args.skip_verdict:
-        from .results import BundleInputs, build_results_bundle
         from .agents import CrossExaminationAgent
+        from .results import BundleInputs, build_results_bundle
 
         pre_bundle = build_results_bundle(
             inputs=BundleInputs(
@@ -886,18 +912,6 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         with open(verdict_path, "w") as f:
             json.dump(verdict_output.result, f, indent=2, default=str)
 
-    summary = {
-        "run_id": run_id,
-        "output_dir": str(run_dir),
-        "files_analyzed": len(files),
-        "findings": {
-            "exploit": len(exploit_output.result.get("findings", [])),
-            "break": len(break_output.result.get("findings", [])),
-            "chaos": len(chaos_output.result.get("experiments", [])),
-        },
-        "verdict": verdict_output.result.get("summary", {}) if verdict_output else None,
-    }
-
     # Build canonical bundle + optional formatted report
     finished_at = datetime.now(UTC).isoformat()
     from .results import BundleInputs, build_results_bundle
@@ -953,7 +967,9 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
             if args.baseline_mode == "only-new" and args.fail_on != "never":
                 threshold = str(args.min_severity).upper()
                 regressions = [
-                    f for f in diff.new if severity_gte(str(f.get("severity", "UNKNOWN")), threshold)
+                    f
+                    for f in diff.new
+                    if severity_gte(str(f.get("severity", "UNKNOWN")), threshold)
                 ]
                 if regressions:
                     # Mirror existing convention: 2 means "block".
@@ -1064,15 +1080,15 @@ async def cmd_watch(args: argparse.Namespace, config: Config) -> int:
         print(f"{'=' * 60}\n")
 
         # Create a temporary args for analyze
-        from types import SimpleNamespace
+        json_output_flag = bool(getattr(args, "json_output", False))
 
         for path in changed_paths[:5]:  # Limit to first 5 for performance
-            analyze_args = SimpleNamespace(
+            analyze_args = argparse.Namespace(
                 agent=args.agent if args.agent != "all" else "exploit",
                 target=str(path),
                 focus=None,
                 timeout=60,
-                json_output=args.json_output if hasattr(args, 'json_output') else False,
+                json_output=json_output_flag,
                 output=None,
             )
             try:
@@ -1093,21 +1109,21 @@ async def cmd_cache(args: argparse.Namespace, config: Config) -> int:
 
     if args.cache_command == "stats":
         stats = cache.stats()
-        if args.json_output if hasattr(args, 'json_output') else False:
+        if args.json_output if hasattr(args, "json_output") else False:
             print_json(stats)
         else:
             print("\nCache Statistics")
             print("=" * 40)
             print(f"Enabled: {stats.get('enabled', False)}")
-            if stats.get('enabled'):
+            if stats.get("enabled"):
                 print(f"Total Entries: {stats.get('total_entries', 0)}")
                 print(f"Valid Entries: {stats.get('valid_entries', 0)}")
                 print(f"Expired Entries: {stats.get('expired_entries', 0)}")
                 print(f"Total Size: {stats.get('total_size_mb', 0)} MB")
                 print(f"Cache Dir: {stats.get('cache_dir', 'N/A')}")
-                if stats.get('by_agent'):
+                if stats.get("by_agent"):
                     print("\nBy Agent:")
-                    for agent, count in stats['by_agent'].items():
+                    for agent, count in stats["by_agent"].items():
                         print(f"  {agent}: {count}")
         return 0
 
@@ -1155,8 +1171,9 @@ def main() -> NoReturn:
     args = parser.parse_args()
 
     # Handle completions early (before config loading)
-    if hasattr(args, 'completions') and args.completions:
+    if hasattr(args, "completions") and args.completions:
         from .completions import print_completion_script
+
         print_completion_script(args.completions)
         sys.exit(0)
 

@@ -23,4 +23,3 @@ def test_diff_bundles_new_and_fixed() -> None:
     assert [f["fingerprint"] for f in diff.new] == ["fp-c"]
     assert [f["fingerprint"] for f in diff.fixed] == ["fp-a"]
     assert [f["fingerprint"] for f in diff.existing] == ["fp-b"]
-

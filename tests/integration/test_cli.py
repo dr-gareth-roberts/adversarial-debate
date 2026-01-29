@@ -81,7 +81,14 @@ class TestCLIAnalyze:
     def test_analyze_nonexistent_file(self) -> None:
         """Test analyze with nonexistent file."""
         result = subprocess.run(
-            [sys.executable, "-m", "adversarial_debate.cli", "analyze", "exploit", "/nonexistent/file.py"],
+            [
+                sys.executable,
+                "-m",
+                "adversarial_debate.cli",
+                "analyze",
+                "exploit",
+                "/nonexistent/file.py",
+            ],
             capture_output=True,
             text=True,
         )
@@ -92,9 +99,13 @@ class TestCLIAnalyze:
         """Test analyze with --dry-run."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "adversarial_debate.cli",
+                sys.executable,
+                "-m",
+                "adversarial_debate.cli",
                 "--dry-run",
-                "analyze", "exploit", str(sample_code_file),
+                "analyze",
+                "exploit",
+                str(sample_code_file),
             ],
             capture_output=True,
             text=True,
@@ -121,9 +132,12 @@ class TestCLIOrchestrate:
         """Test orchestrate with --dry-run."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "adversarial_debate.cli",
+                sys.executable,
+                "-m",
+                "adversarial_debate.cli",
                 "--dry-run",
-                "orchestrate", str(sample_code_file),
+                "orchestrate",
+                str(sample_code_file),
             ],
             capture_output=True,
             text=True,
@@ -148,7 +162,13 @@ class TestCLIVerdict:
     def test_verdict_nonexistent_file(self) -> None:
         """Test verdict with nonexistent findings file."""
         result = subprocess.run(
-            [sys.executable, "-m", "adversarial_debate.cli", "verdict", "/nonexistent/findings.json"],
+            [
+                sys.executable,
+                "-m",
+                "adversarial_debate.cli",
+                "verdict",
+                "/nonexistent/findings.json",
+            ],
             capture_output=True,
             text=True,
         )
@@ -158,19 +178,26 @@ class TestCLIVerdict:
     def test_verdict_dry_run(self, temp_dir: Path) -> None:
         """Test verdict with --dry-run."""
         findings_file = temp_dir / "findings.json"
-        findings_file.write_text(json.dumps([
-            {
-                "id": "TEST-001",
-                "title": "Test Finding",
-                "severity": "MEDIUM",
-            }
-        ]))
+        findings_file.write_text(
+            json.dumps(
+                [
+                    {
+                        "id": "TEST-001",
+                        "title": "Test Finding",
+                        "severity": "MEDIUM",
+                    }
+                ]
+            )
+        )
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "adversarial_debate.cli",
+                sys.executable,
+                "-m",
+                "adversarial_debate.cli",
                 "--dry-run",
-                "verdict", str(findings_file),
+                "verdict",
+                str(findings_file),
             ],
             capture_output=True,
             text=True,
@@ -197,9 +224,12 @@ class TestCLIRun:
         """Test run with --dry-run."""
         result = subprocess.run(
             [
-                sys.executable, "-m", "adversarial_debate.cli",
+                sys.executable,
+                "-m",
+                "adversarial_debate.cli",
                 "--dry-run",
-                "run", str(sample_code_file),
+                "run",
+                str(sample_code_file),
             ],
             capture_output=True,
             text=True,
@@ -215,9 +245,13 @@ class TestCLIRun:
 
         result = subprocess.run(
             [
-                sys.executable, "-m", "adversarial_debate.cli",
-                "run", str(sample_code_file),
-                "--output", str(temp_dir),
+                sys.executable,
+                "-m",
+                "adversarial_debate.cli",
+                "run",
+                str(sample_code_file),
+                "--output",
+                str(temp_dir),
             ],
             capture_output=True,
             text=True,

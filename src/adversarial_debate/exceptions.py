@@ -191,13 +191,10 @@ class ProviderAuthenticationError(ProviderError):
                 "Set AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT environment variables. "
                 "Ensure your Azure OpenAI resource is properly configured."
             ),
-            "ollama": (
-                "Ensure Ollama is running locally. Start with: ollama serve"
-            ),
+            "ollama": ("Ensure Ollama is running locally. Start with: ollama serve"),
         }
         return suggestions.get(
-            self.provider_name or "",
-            "Check your API key and provider configuration."
+            self.provider_name or "", "Check your API key and provider configuration."
         )
 
 
@@ -239,8 +236,7 @@ class SandboxTimeoutError(SandboxError):
     """Raised when sandbox execution times out."""
 
     _suggestion = (
-        "The sandbox execution took too long. "
-        "Check for infinite loops or increase the timeout."
+        "The sandbox execution took too long. Check for infinite loops or increase the timeout."
     )
 
     def __init__(
@@ -336,8 +332,7 @@ class ConfigValidationError(ConfigError):
     """Raised when configuration validation fails."""
 
     _suggestion = (
-        "The configuration value is invalid. "
-        "Check the configuration schema for valid options."
+        "The configuration value is invalid. Check the configuration schema for valid options."
     )
 
     def __init__(

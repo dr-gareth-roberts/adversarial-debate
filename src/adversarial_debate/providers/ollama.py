@@ -26,9 +26,7 @@ class OllamaProvider(LLMProvider):
 
     def __init__(self, config: ProviderConfig | None = None):
         config = config or ProviderConfig()
-        config.base_url = config.base_url or os.getenv(
-            "OLLAMA_BASE_URL", "http://localhost:11434"
-        )
+        config.base_url = config.base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         super().__init__(config)
 
         self._session: aiohttp.ClientSession | None = None
@@ -64,14 +62,11 @@ class OllamaProvider(LLMProvider):
         max_tokens: int | None = None,
         json_mode: bool = False,
     ) -> LLMResponse:
-        model, temperature, max_tokens = self._resolve_params(
-            model, temperature, max_tokens
-        )
+        model, temperature, max_tokens = self._resolve_params(model, temperature, max_tokens)
 
         # Convert messages to Ollama format
         api_messages: list[dict[str, str]] = [
-            {"role": msg.role, "content": msg.content}
-            for msg in messages
+            {"role": msg.role, "content": msg.content} for msg in messages
         ]
 
         # Build request
@@ -123,7 +118,10 @@ class OllamaProvider(LLMProvider):
             response.raise_for_status()
             data = await response.json()
 
-        return data.get("models", [])
+        models = data.get("models", [])
+        if not isinstance(models, list):
+            return []
+        return [m for m in models if isinstance(m, dict)]
 
     async def pull_model(self, model_name: str) -> None:
         """Pull a model from Ollama registry.

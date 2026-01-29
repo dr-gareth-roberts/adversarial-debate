@@ -16,8 +16,18 @@ def test_cross_examination_agent_metadata() -> None:
 
 def test_cross_exam_auto_dismisses_missing_repro() -> None:
     findings = [
-        {"fingerprint": "fp-1", "severity": "HIGH", "reproduction_steps": [], "debate": {"resolution": "UPHOLD"}},
-        {"fingerprint": "fp-2", "severity": "HIGH", "reproduction_steps": ["curl ..."], "debate": {"resolution": "UPHOLD"}},
+        {
+            "fingerprint": "fp-1",
+            "severity": "HIGH",
+            "reproduction_steps": [],
+            "debate": {"resolution": "UPHOLD"},
+        },
+        {
+            "fingerprint": "fp-2",
+            "severity": "HIGH",
+            "reproduction_steps": ["curl ..."],
+            "debate": {"resolution": "UPHOLD"},
+        },
     ]
     filtered, counts = _enforce_repro_dismissal(findings)
     assert [f["fingerprint"] for f in filtered] == ["fp-2"]

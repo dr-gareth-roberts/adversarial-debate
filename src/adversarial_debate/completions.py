@@ -3,7 +3,7 @@
 Generates completion scripts for bash, zsh, and fish shells.
 """
 
-BASH_COMPLETION = '''
+BASH_COMPLETION = """
 # Bash completion for adversarial-debate
 # Add to ~/.bashrc or ~/.bash_completion
 
@@ -92,7 +92,10 @@ _adversarial_debate_completions() {
                 COMPREPLY=( $(compgen -W "--context --help" -- ${cur}) )
                 ;;
             run)
-                COMPREPLY=( $(compgen -W "--files --time-budget --parallel --skip-verdict --skip-debate --debate-max-findings --format --report-file --bundle-file --fail-on --min-severity --baseline-file --baseline-mode --baseline-write --help" -- ${cur}) )
+                COMPREPLY=( $(compgen -W "--files --time-budget --parallel \\
+--skip-verdict --skip-debate --debate-max-findings --format \\
+--report-file --bundle-file --fail-on --min-severity --baseline-file \\
+--baseline-mode --baseline-write --help" -- ${cur}) )
                 ;;
             watch)
                 COMPREPLY=( $(compgen -W "--agent --debounce --patterns --help" -- ${cur}) )
@@ -109,9 +112,9 @@ _adversarial_debate_completions() {
 }
 
 complete -F _adversarial_debate_completions adversarial-debate
-'''
+"""
 
-ZSH_COMPLETION = '''
+ZSH_COMPLETION = """
 #compdef adversarial-debate
 
 # Zsh completion for adversarial-debate
@@ -220,9 +223,9 @@ _adversarial_debate() {
 }
 
 _adversarial_debate "$@"
-'''
+"""
 
-FISH_COMPLETION = '''
+FISH_COMPLETION = """
 # Fish completion for adversarial-debate
 # Save to ~/.config/fish/completions/adversarial-debate.fish
 
@@ -230,11 +233,14 @@ FISH_COMPLETION = '''
 complete -c adversarial-debate -f
 
 # Commands
-complete -c adversarial-debate -n "__fish_use_subcommand" -a "analyze" -d "Run a single agent on a target"
-complete -c adversarial-debate -n "__fish_use_subcommand" -a "orchestrate" -d "Create an attack plan"
+complete -c adversarial-debate -n "__fish_use_subcommand" -a "analyze" \\
+    -d "Run a single agent on a target"
+complete -c adversarial-debate -n "__fish_use_subcommand" -a "orchestrate" \\
+    -d "Create an attack plan"
 complete -c adversarial-debate -n "__fish_use_subcommand" -a "verdict" -d "Run arbiter on findings"
 complete -c adversarial-debate -n "__fish_use_subcommand" -a "run" -d "Run full pipeline"
-complete -c adversarial-debate -n "__fish_use_subcommand" -a "watch" -d "Watch files and re-run on changes"
+complete -c adversarial-debate -n "__fish_use_subcommand" -a "watch" \\
+    -d "Watch files and re-run on changes"
 complete -c adversarial-debate -n "__fish_use_subcommand" -a "cache" -d "Manage analysis cache"
 
 # Global options
@@ -247,41 +253,69 @@ complete -c adversarial-debate -s o -l output -r -d "Output path"
 complete -c adversarial-debate -s h -l help -d "Show help"
 
 # analyze command
-complete -c adversarial-debate -n "__fish_seen_subcommand_from analyze" -a "exploit break chaos" -d "Agent"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from analyze" -a "exploit break chaos" \\
+    -d "Agent"
 complete -c adversarial-debate -n "__fish_seen_subcommand_from analyze" -l focus -d "Focus areas"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from analyze" -l timeout -x -d "Timeout seconds"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from analyze" -l timeout -x \\
+    -d "Timeout seconds"
 
 # orchestrate command
-complete -c adversarial-debate -n "__fish_seen_subcommand_from orchestrate" -l time-budget -x -d "Time budget seconds"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from orchestrate" -l exposure -x -a "public authenticated internal" -d "Exposure level"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from orchestrate" -l time-budget -x \\
+    -d "Time budget seconds"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from orchestrate" -l exposure -x \\
+    -a "public authenticated internal" \\
+    -d "Exposure level"
 
 # verdict command
-complete -c adversarial-debate -n "__fish_seen_subcommand_from verdict" -l context -r -d "Context file"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from verdict" -l context -r \\
+    -d "Context file"
 
 # run command
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l time-budget -x -d "Time budget seconds"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l parallel -x -d "Parallel agents"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l skip-verdict -d "Skip final verdict"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l files -x -d "Specific files"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l skip-debate -d "Skip cross-examination debate"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l debate-max-findings -x -d "Max findings for debate"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l format -x -a "json sarif html markdown" -d "Report format"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l report-file -r -d "Report path"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l bundle-file -r -d "Bundle path"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l fail-on -x -a "block warn never" -d "Fail on verdict"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l min-severity -x -a "critical high medium low info" -d "Min severity"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l baseline-file -r -d "Baseline bundle"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l baseline-mode -x -a "off only-new" -d "Baseline mode"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l baseline-write -r -d "Write baseline"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l time-budget -x \\
+    -d "Time budget seconds"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l parallel -x \\
+    -d "Parallel agents"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l skip-verdict \\
+    -d "Skip final verdict"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l files -x \\
+    -d "Specific files"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l skip-debate \\
+    -d "Skip cross-examination debate"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l debate-max-findings -x \\
+    -d "Max findings for debate"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l format -x \\
+    -a "json sarif html markdown" \\
+    -d "Report format"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l report-file -r \\
+    -d "Report path"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l bundle-file -r \\
+    -d "Bundle path"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l fail-on -x \\
+    -a "block warn never" \\
+    -d "Fail on verdict"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l min-severity -x \\
+    -a "critical high medium low info" \\
+    -d "Min severity"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l baseline-file -r \\
+    -d "Baseline bundle"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l baseline-mode -x \\
+    -a "off only-new" \\
+    -d "Baseline mode"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from run" -l baseline-write -r \\
+    -d "Write baseline"
 
 # watch command
-complete -c adversarial-debate -n "__fish_seen_subcommand_from watch" -l agent -x -a "exploit break chaos all" -d "Agent to run"
-complete -c adversarial-debate -n "__fish_seen_subcommand_from watch" -l debounce -x -d "Debounce delay"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from watch" -l agent -x \\
+    -a "exploit break chaos all" \\
+    -d "Agent to run"
+complete -c adversarial-debate -n "__fish_seen_subcommand_from watch" -l debounce -x \\
+    -d "Debounce delay"
 complete -c adversarial-debate -n "__fish_seen_subcommand_from watch" -l patterns -d "File patterns"
 
 # cache command
-complete -c adversarial-debate -n "__fish_seen_subcommand_from cache" -a "stats clear cleanup" -d "Cache command"
-'''
+complete -c adversarial-debate -n "__fish_seen_subcommand_from cache" -a "stats clear cleanup" \\
+    -d "Cache command"
+"""
 
 
 def get_completion_script(shell: str) -> str:
@@ -303,9 +337,7 @@ def get_completion_script(shell: str) -> str:
     }
 
     if shell not in scripts:
-        raise ValueError(
-            f"Unknown shell: {shell}. Supported: bash, zsh, fish"
-        )
+        raise ValueError(f"Unknown shell: {shell}. Supported: bash, zsh, fish")
 
     return scripts[shell].strip()
 

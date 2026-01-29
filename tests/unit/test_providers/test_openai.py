@@ -2,7 +2,7 @@
 
 import pytest
 
-from adversarial_debate.providers.base import Message, ModelTier, ProviderConfig
+from adversarial_debate.providers.base import ModelTier, ProviderConfig
 
 
 class TestOpenAIProvider:
@@ -13,12 +13,13 @@ class TestOpenAIProvider:
         import sys
 
         # Remove openai from modules if present
-        openai_modules = [k for k in sys.modules.keys() if k.startswith("openai")]
+        openai_modules = [k for k in sys.modules if k.startswith("openai")]
         for mod in openai_modules:
             monkeypatch.delitem(sys.modules, mod, raising=False)
 
         # Mock the import to fail
         import builtins
+
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -29,14 +30,13 @@ class TestOpenAIProvider:
         monkeypatch.setattr(builtins, "__import__", mock_import)
 
         # Clear the cached module to force reimport
-        monkeypatch.delitem(
-            sys.modules, "adversarial_debate.providers.openai", raising=False
-        )
+        monkeypatch.delitem(sys.modules, "adversarial_debate.providers.openai", raising=False)
 
         # This should work - the module imports but sets HAS_OPENAI = False
         # The actual error comes when instantiating
         try:
             from adversarial_debate.providers.openai import OpenAIProvider
+
             with pytest.raises(ImportError, match="openai package not installed"):
                 OpenAIProvider()
         except ImportError:

@@ -8,6 +8,7 @@ from typing import Any
 
 class OutputFormat(str, Enum):
     """Supported output formats."""
+
     JSON = "json"
     SARIF = "sarif"
     HTML = "html"
@@ -17,6 +18,7 @@ class OutputFormat(str, Enum):
 @dataclass
 class FormatterConfig:
     """Configuration for output formatters."""
+
     pretty: bool = True
     include_metadata: bool = True
     include_raw_findings: bool = False

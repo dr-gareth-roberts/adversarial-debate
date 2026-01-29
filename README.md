@@ -133,7 +133,7 @@ pip install adversarial-debate
 # From source
 git clone https://github.com/dr-gareth-roberts/adversarial-debate.git
 cd adversarial-debate
-uv sync --dev
+uv sync --extra dev
 ```
 
 ### Configuration
@@ -144,10 +144,17 @@ The framework can be configured via environment variables, a `.env` file, or a c
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `ANTHROPIC_API_KEY` | Anthropic API key (not needed for mock) | *Required for anthropic* |
-| `LLM_PROVIDER` | LLM provider to use (`anthropic`, `mock`) | `anthropic` |
+| `ANTHROPIC_API_KEY` | Anthropic API key (not needed for `mock`) | *Required for anthropic* |
+| `OPENAI_API_KEY` | OpenAI API key | *Required for openai* |
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI API key | *Required for azure* |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL | *Required for azure* |
+| `OLLAMA_BASE_URL` | Ollama base URL (no API key required) | `http://localhost:11434` |
+| `LLM_PROVIDER` | LLM provider to use (`anthropic`, `openai`, `azure`, `ollama`, `mock`) | `anthropic` |
 | `LLM_MODEL` | Model version to use | `claude-sonnet-4-20250514` |
+| `LLM_TIMEOUT` | Provider request timeout (seconds) | `120` |
 | `ADVERSARIAL_DEBUG` | Enable verbose debug logging | `false` |
+| `ADVERSARIAL_LOG_LEVEL` | Log level | `INFO` |
+| `ADVERSARIAL_LOG_FORMAT` | Log format (`text` or `json`) | `text` |
 | `ADVERSARIAL_OUTPUT_DIR`| Where to store results | `./output` |
 | `ADVERSARIAL_BEAD_LEDGER` | Bead ledger path | `./beads/ledger.jsonl` |
 
@@ -266,18 +273,18 @@ import asyncio
 from adversarial_debate import SandboxExecutor, SandboxConfig
 
 config = SandboxConfig(
-    enabled=True,
     timeout_seconds=30,
-    memory_limit_mb=512,
+    memory_limit="512m",
+    cpu_limit=0.5,
     network_enabled=False,
-    docker_image="python:3.11-slim"
+    docker_image="python:3.11-slim",
 )
 
 executor = SandboxExecutor(config)
 
 async def run_in_sandbox() -> None:
     result = await executor.execute_python("print('Hello from the sandbox')")
-    print(result.stdout)
+    print(result.output)
 
 asyncio.run(run_in_sandbox())
 ```
@@ -313,13 +320,13 @@ asyncio.run(run_in_sandbox())
 
 ```bash
 # Install dependencies
-uv sync --dev
+uv sync --extra dev
 
 # Run tests
 uv run pytest
 
 # Run linting
-uv run ruff check .
+uv run ruff check src tests
 
 # Run type checking
 uv run mypy src

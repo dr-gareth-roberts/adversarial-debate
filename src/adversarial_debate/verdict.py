@@ -264,21 +264,11 @@ class ArbiterVerdict:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ArbiterVerdict":
         """Create from dict."""
-        blocking = [
-            ValidatedFinding.from_dict(f) for f in data.get("blocking_issues", [])
-        ]
-        warnings = [
-            ValidatedFinding.from_dict(f) for f in data.get("warnings", [])
-        ]
-        passed = [
-            ValidatedFinding.from_dict(f) for f in data.get("passed_findings", [])
-        ]
-        rejected = [
-            RejectedFinding.from_dict(f) for f in data.get("false_positives", [])
-        ]
-        tasks = [
-            RemediationTask.from_dict(t) for t in data.get("remediation_tasks", [])
-        ]
+        blocking = [ValidatedFinding.from_dict(f) for f in data.get("blocking_issues", [])]
+        warnings = [ValidatedFinding.from_dict(f) for f in data.get("warnings", [])]
+        passed = [ValidatedFinding.from_dict(f) for f in data.get("passed_findings", [])]
+        rejected = [RejectedFinding.from_dict(f) for f in data.get("false_positives", [])]
+        tasks = [RemediationTask.from_dict(t) for t in data.get("remediation_tasks", [])]
         effort_str = data.get("total_remediation_effort", "HOURS")
         return cls(
             verdict_id=data["verdict_id"],

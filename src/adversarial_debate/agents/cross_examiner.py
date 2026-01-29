@@ -19,14 +19,14 @@ from ..providers import Message, ModelTier
 from ..store import BeadType
 from .base import Agent, AgentContext, AgentOutput
 
-
 CROSS_EXAMINER_ROUND1_SYSTEM_PROMPT = """You are the CrossExaminationAgent.
 
 ROUND 1: ATTACK (Cross-examination)
 
 You simulate a ferocious attack phase between TWO adversarial specialists:
 
-1) ExploitAgent (security attacker): ruthless about exploitability, insists on a plausible exploit path.
+1) ExploitAgent (security attacker): ruthless about exploitability, insists on a plausible exploit
+   path.
 2) BreakAgent (logic breaker): ruthless about edge cases, insists on concrete reproduction.
 
 Your job is NOT to be polite. Your job is to attack weak claims and list missing evidence.
@@ -48,9 +48,9 @@ Return valid JSON ONLY with this exact schema:
       "minimum_required_repro": ["the minimal payload or reproduction steps required"]
     }
   ],
-  "confidence": 0.0-1.0,
-  "assumptions": ["..."],
-  "unknowns": ["..."]
+  "confidence": 0.8,
+  "assumptions": ["assumptions made"],
+  "unknowns": ["things that couldn't be determined"]
 }
 
 Constraints:
@@ -58,7 +58,7 @@ Constraints:
 - Do not add new findings; only refine or dismiss existing ones.
 """
 
- 
+
 CROSS_EXAMINER_ROUND2_SYSTEM_PROMPT = """You are the CrossExaminationAgent.
 
 ROUND 2: FORCED REBUTTAL (Defense) + FINAL JUDGMENT
@@ -80,34 +80,34 @@ Return valid JSON ONLY with this exact schema:
 {
   "findings": [
     {
-      "id": "string or null",
+      "id": null,
       "fingerprint": "string",
-      "finding_type": "exploit|break|chaos_experiment|unknown",
-      "agent": "ExploitAgent|BreakAgent|ChaosAgent|unknown",
+      "finding_type": "exploit",
+      "agent": "ExploitAgent",
       "title": "string",
-      "severity": "CRITICAL|HIGH|MEDIUM|LOW|INFO|UNKNOWN",
-      "confidence": 0.0-1.0,
-      "file_path": "string or null",
-      "line": 123 or null,
-      "description": "string or null",
-      "impact": "string or null",
-      "remediation": "string or null",
-      "reproduction_steps": ["string", "..."],
+      "severity": "MEDIUM",
+      "confidence": 0.7,
+      "file_path": null,
+      "line": null,
+      "description": null,
+      "impact": null,
+      "remediation": null,
+      "reproduction_steps": ["step 1", "step 2"],
       "debate": {
         "attacks": ["strongest objections / counterarguments"],
         "defenses": ["defenses grounded in evidence"],
-        "resolution": "UPHOLD|DOWNGRADE|DISMISS",
-        "confidence_delta": -1.0-1.0
+        "resolution": "DOWNGRADE",
+        "confidence_delta": -0.2
       },
       "raw": {}
     }
   ],
   "summary": {
     "upheld": 0,
-    "downgraded": 0,
+    "downgraded": 1,
     "dismissed": 0
   },
-  "confidence": 0.0-1.0,
+  "confidence": 0.8,
   "assumptions": ["assumptions made"],
   "unknowns": ["things that couldn't be determined"]
 }
@@ -127,19 +127,24 @@ def _has_concrete_repro(finding: dict[str, Any]) -> bool:
     raw = finding.get("raw") or {}
     if isinstance(raw, dict):
         exploit = raw.get("exploit")
-        if isinstance(exploit, dict) and any(
-            isinstance(exploit.get(k), str) and exploit.get(k).strip() for k in ("payload", "curl_command")
-        ):
-            return True
+        if isinstance(exploit, dict):
+            for key in ("payload", "curl_command"):
+                value = exploit.get(key)
+                if isinstance(value, str) and value.strip():
+                    return True
 
         poc = raw.get("proof_of_concept")
-        if isinstance(poc, dict) and isinstance(poc.get("code"), str) and poc.get("code").strip():
-            return True
+        if isinstance(poc, dict):
+            code = poc.get("code")
+            if isinstance(code, str) and code.strip():
+                return True
 
     return False
 
 
-def _enforce_repro_dismissal(findings: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+def _enforce_repro_dismissal(
+    findings: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Force-dismiss (and drop) any finding without concrete repro/payload."""
     upheld = downgraded = dismissed = 0
     kept: list[dict[str, Any]] = []
@@ -151,12 +156,14 @@ def _enforce_repro_dismissal(findings: list[dict[str, Any]]) -> tuple[list[dict[
         if not f.get("fingerprint"):
             f["fingerprint"] = compute_fingerprint(f)
 
-        debate = f.get("debate") if isinstance(f.get("debate"), dict) else {}
+        raw_debate = f.get("debate")
+        debate: dict[str, Any] = raw_debate if isinstance(raw_debate, dict) else {}
         resolution = str(debate.get("resolution", "")).upper()
 
         if not _has_concrete_repro(f):
             debate = dict(debate)
-            attacks = debate.get("attacks") if isinstance(debate.get("attacks"), list) else []
+            raw_attacks = debate.get("attacks")
+            attacks = [str(a) for a in raw_attacks] if isinstance(raw_attacks, list) else []
             attacks.append("Missing concrete reproduction steps/payload; auto-dismissed by policy.")
             debate["attacks"] = attacks
             debate["resolution"] = "DISMISS"
@@ -211,25 +218,34 @@ class CrossExaminationAgent(Agent):
         ]
 
         if code_excerpt:
-            user_parts.extend([
-                "",
-                "## Code Excerpt (for evidence checks)",
-                "```",
-                code_excerpt[:20000],
-                "```",
-            ])
+            user_parts.extend(
+                [
+                    "",
+                    "## Code Excerpt (for evidence checks)",
+                    "```",
+                    code_excerpt[:20000],
+                    "```",
+                ]
+            )
 
-        user_parts.extend([
-            "",
-            "Round 1: ATTACK. Return only JSON.",
-        ])
+        user_parts.extend(
+            [
+                "",
+                "Round 1: ATTACK. Return only JSON.",
+            ]
+        )
 
         return [
             Message(role="system", content=CROSS_EXAMINER_ROUND1_SYSTEM_PROMPT),
             Message(role="user", content="\n".join(user_parts)),
         ]
 
-    def _build_round2_prompt(self, context: AgentContext, *, challenges: dict[str, Any]) -> list[Message]:
+    def _build_round2_prompt(
+        self,
+        context: AgentContext,
+        *,
+        challenges: dict[str, Any],
+    ) -> list[Message]:
         findings = context.inputs.get("findings", [])
         code_excerpt = context.inputs.get("code_excerpt", "")
         max_findings = int(context.inputs.get("max_findings", 40))
@@ -249,18 +265,22 @@ class CrossExaminationAgent(Agent):
         ]
 
         if code_excerpt:
-            user_parts.extend([
-                "",
-                "## Code Excerpt (for evidence checks)",
-                "```",
-                code_excerpt[:20000],
-                "```",
-            ])
+            user_parts.extend(
+                [
+                    "",
+                    "## Code Excerpt (for evidence checks)",
+                    "```",
+                    code_excerpt[:20000],
+                    "```",
+                ]
+            )
 
-        user_parts.extend([
-            "",
-            "Round 2: FORCED REBUTTAL + FINAL JUDGMENT. Return only JSON.",
-        ])
+        user_parts.extend(
+            [
+                "",
+                "Round 2: FORCED REBUTTAL + FINAL JUDGMENT. Return only JSON.",
+            ]
+        )
 
         return [
             Message(role="system", content=CROSS_EXAMINER_ROUND2_SYSTEM_PROMPT),

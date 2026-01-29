@@ -4,6 +4,20 @@ import hashlib
 from pathlib import Path
 
 
+def normalize_code(code: str) -> str:
+    """Normalize source code for stable hashing and caching.
+
+    This is intentionally conservative: it normalizes line endings and trims
+    trailing whitespace per line so semantically-identical edits (e.g. CRLF vs
+    LF, trailing spaces) do not thrash the cache.
+    """
+    # Normalize line endings
+    normalized = code.replace("\r\n", "\n").replace("\r", "\n")
+    # Trim trailing whitespace per line (idempotent)
+    normalized = "\n".join(line.rstrip() for line in normalized.split("\n"))
+    return normalized
+
+
 def hash_content(content: str, algorithm: str = "sha256") -> str:
     """Hash string content.
 
@@ -38,6 +52,15 @@ def hash_file(path: Path | str, algorithm: str = "sha256") -> str:
             h.update(chunk)
 
     return h.hexdigest()
+
+
+def hash_file_content(path: Path | str, algorithm: str = "sha256") -> str:
+    """Backward-compatible alias for hashing file content.
+
+    Historically, some callers used `hash_file_content`; keep it as a thin
+    wrapper to avoid unnecessary API churn.
+    """
+    return hash_file(path, algorithm=algorithm)
 
 
 def hash_files(paths: list[Path | str], algorithm: str = "sha256") -> str:

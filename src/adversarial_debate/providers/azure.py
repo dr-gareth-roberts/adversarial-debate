@@ -5,12 +5,6 @@ from typing import Any
 
 from .base import LLMProvider, LLMResponse, Message, ModelTier, ProviderConfig
 
-try:
-    import openai
-    HAS_OPENAI = True
-except ImportError:
-    HAS_OPENAI = False
-
 
 class AzureOpenAIProvider(LLMProvider):
     """Azure OpenAI provider.
@@ -31,10 +25,10 @@ class AzureOpenAIProvider(LLMProvider):
     }
 
     def __init__(self, config: ProviderConfig | None = None):
-        if not HAS_OPENAI:
-            raise ImportError(
-                "openai package not installed. Run: pip install openai"
-            )
+        try:
+            import openai
+        except ImportError as err:
+            raise ImportError("openai package not installed. Run: pip install openai") from err
 
         config = config or ProviderConfig()
         config.api_key = config.api_key or os.getenv("AZURE_OPENAI_API_KEY")
@@ -46,19 +40,23 @@ class AzureOpenAIProvider(LLMProvider):
                 "environment variable or provide base_url in config."
             )
 
+        azure_endpoint = config.base_url
         super().__init__(config)
 
         # Azure-specific settings from config.extra or environment
-        self._deployment = config.extra.get(
-            "deployment", os.getenv("AZURE_OPENAI_DEPLOYMENT")
-        )
-        self._api_version = config.extra.get(
-            "api_version", os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
-        )
+        deployment = config.extra.get("deployment")
+        if deployment is None:
+            deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT")
+        self._deployment = str(deployment) if deployment is not None else None
+
+        api_version = config.extra.get("api_version")
+        if api_version is None:
+            api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
+        self._api_version = str(api_version) if api_version is not None else "2024-02-01"
 
         self._client = openai.AsyncAzureOpenAI(
             api_key=self.config.api_key,
-            azure_endpoint=self.config.base_url,
+            azure_endpoint=azure_endpoint,
             api_version=self._api_version,
             timeout=self.config.timeout,
         )
@@ -86,14 +84,11 @@ class AzureOpenAIProvider(LLMProvider):
         max_tokens: int | None = None,
         json_mode: bool = False,
     ) -> LLMResponse:
-        model, temperature, max_tokens = self._resolve_params(
-            model, temperature, max_tokens
-        )
+        model, temperature, max_tokens = self._resolve_params(model, temperature, max_tokens)
 
         # Convert messages to OpenAI format
         api_messages: list[dict[str, str]] = [
-            {"role": msg.role, "content": msg.content}
-            for msg in messages
+            {"role": msg.role, "content": msg.content} for msg in messages
         ]
 
         # Build request

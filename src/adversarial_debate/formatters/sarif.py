@@ -16,7 +16,6 @@ from urllib.parse import quote
 
 from .base import Formatter, FormatterConfig, OutputFormat
 
-
 # Mapping from our severity levels to SARIF levels
 SEVERITY_TO_SARIF_LEVEL = {
     "CRITICAL": "error",
@@ -85,10 +84,7 @@ class SARIFFormatter(Formatter):
         rule_index = {rule["id"]: i for i, rule in enumerate(rules)}
 
         # Build results
-        results = [
-            self._finding_to_result(finding, rule_index)
-            for finding in findings
-        ]
+        results = [self._finding_to_result(finding, rule_index) for finding in findings]
 
         # Build the run
         run: dict[str, Any] = {
@@ -332,10 +328,4 @@ class SARIFFormatter(Formatter):
 
             thread_flow_locations.append(location)
 
-        return [
-            {
-                "threadFlows": [
-                    {"locations": thread_flow_locations}
-                ]
-            }
-        ]
+        return [{"threadFlows": [{"locations": thread_flow_locations}]}]

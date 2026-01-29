@@ -1,7 +1,5 @@
 """Tests for base provider classes."""
 
-import pytest
-
 from adversarial_debate.providers.base import (
     LLMResponse,
     Message,

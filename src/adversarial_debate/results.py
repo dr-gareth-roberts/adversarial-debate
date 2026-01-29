@@ -56,34 +56,32 @@ def normalize_exploit_findings(findings: list[dict[str, Any]]) -> list[dict[str,
         remediation = f.get("remediation") or {}
         exploit = f.get("exploit") or {}
 
-        finding = (
-            {
-                "id": f.get("id"),
-                "finding_type": "exploit",
-                "agent": "ExploitAgent",
-                "title": f.get("title"),
-                "severity": f.get("severity", "MEDIUM"),
-                "description": f.get("description"),
-                "category": f.get("owasp_category"),
-                "cwe": _parse_cwe_id(f.get("cwe_id")),
-                "confidence": f.get("confidence"),
-                "file_path": file_path,
-                "line": line,
-                "code_snippet": snippet,
-                "impact": exploit.get("impact"),
-                "remediation": remediation.get("immediate") or remediation.get("code_fix"),
-                "reproduction_steps": [
-                    step
-                    for step in [
-                        exploit.get("description"),
-                        exploit.get("payload"),
-                        exploit.get("curl_command"),
-                    ]
-                    if step
-                ],
-                "raw": f,
-            }
-        )
+        finding = {
+            "id": f.get("id"),
+            "finding_type": "exploit",
+            "agent": "ExploitAgent",
+            "title": f.get("title"),
+            "severity": f.get("severity", "MEDIUM"),
+            "description": f.get("description"),
+            "category": f.get("owasp_category"),
+            "cwe": _parse_cwe_id(f.get("cwe_id")),
+            "confidence": f.get("confidence"),
+            "file_path": file_path,
+            "line": line,
+            "code_snippet": snippet,
+            "impact": exploit.get("impact"),
+            "remediation": remediation.get("immediate") or remediation.get("code_fix"),
+            "reproduction_steps": [
+                step
+                for step in [
+                    exploit.get("description"),
+                    exploit.get("payload"),
+                    exploit.get("curl_command"),
+                ]
+                if step
+            ],
+            "raw": f,
+        }
         finding["fingerprint"] = compute_fingerprint(finding)
         normalized.append(finding)
     return normalized
@@ -103,34 +101,32 @@ def normalize_break_findings(
         poc = f.get("proof_of_concept") or {}
         code_snippet = f.get("code_snippet") or poc.get("code")
 
-        finding = (
-            {
-                "id": f.get("id"),
-                "finding_type": "break",
-                "agent": "BreakAgent",
-                "title": f.get("title"),
-                "severity": f.get("severity", "MEDIUM"),
-                "description": f.get("description"),
-                "category": f.get("category"),
-                "confidence": f.get("confidence"),
-                "file_path": f.get("file_path") or target_file_path,
-                "line": f.get("line") or line,
-                "code_snippet": code_snippet,
-                "impact": f.get("impact"),
-                "remediation": remediation.get("immediate") or remediation.get("proper"),
-                "reproduction_steps": [
-                    step
-                    for step in [
-                        f.get("attack_vector"),
-                        poc.get("description"),
-                        poc.get("expected_behavior"),
-                        poc.get("vulnerable_behavior"),
-                    ]
-                    if step
-                ],
-                "raw": f,
-            }
-        )
+        finding = {
+            "id": f.get("id"),
+            "finding_type": "break",
+            "agent": "BreakAgent",
+            "title": f.get("title"),
+            "severity": f.get("severity", "MEDIUM"),
+            "description": f.get("description"),
+            "category": f.get("category"),
+            "confidence": f.get("confidence"),
+            "file_path": f.get("file_path") or target_file_path,
+            "line": f.get("line") or line,
+            "code_snippet": code_snippet,
+            "impact": f.get("impact"),
+            "remediation": remediation.get("immediate") or remediation.get("proper"),
+            "reproduction_steps": [
+                step
+                for step in [
+                    f.get("attack_vector"),
+                    poc.get("description"),
+                    poc.get("expected_behavior"),
+                    poc.get("vulnerable_behavior"),
+                ]
+                if step
+            ],
+            "raw": f,
+        }
         finding["fingerprint"] = compute_fingerprint(finding)
         normalized.append(finding)
     return normalized
@@ -146,32 +142,30 @@ def normalize_chaos_experiments(experiments: list[dict[str, Any]]) -> list[dict[
         experiment = e.get("experiment") or {}
         hypothesis = e.get("hypothesis") or {}
 
-        finding = (
-            {
-                "id": e.get("id"),
-                "finding_type": "chaos_experiment",
-                "agent": "ChaosAgent",
-                "title": e.get("title"),
-                "severity": e.get("severity_if_vulnerable", "MEDIUM"),
-                "description": experiment.get("description") or e.get("failure_mode"),
-                "category": e.get("category"),
-                "confidence": hypothesis.get("prediction_confidence"),
-                "file_path": file_path,
-                "line": line,
-                "code_snippet": evidence.get("problematic_code"),
-                "impact": hypothesis.get("predicted_actual_behavior"),
-                "remediation": remediation.get("immediate") or remediation.get("proper"),
-                "reproduction_steps": [
-                    step
-                    for step in [
-                        experiment.get("method"),
-                        experiment.get("rollback"),
-                    ]
-                    if step
-                ],
-                "raw": e,
-            }
-        )
+        finding = {
+            "id": e.get("id"),
+            "finding_type": "chaos_experiment",
+            "agent": "ChaosAgent",
+            "title": e.get("title"),
+            "severity": e.get("severity_if_vulnerable", "MEDIUM"),
+            "description": experiment.get("description") or e.get("failure_mode"),
+            "category": e.get("category"),
+            "confidence": hypothesis.get("prediction_confidence"),
+            "file_path": file_path,
+            "line": line,
+            "code_snippet": evidence.get("problematic_code"),
+            "impact": hypothesis.get("predicted_actual_behavior"),
+            "remediation": remediation.get("immediate") or remediation.get("proper"),
+            "reproduction_steps": [
+                step
+                for step in [
+                    experiment.get("method"),
+                    experiment.get("rollback"),
+                ]
+                if step
+            ],
+            "raw": e,
+        }
         finding["fingerprint"] = compute_fingerprint(finding)
         normalized.append(finding)
     return normalized

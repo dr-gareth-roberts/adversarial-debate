@@ -5,31 +5,43 @@ These tests ensure the sandbox cannot be escaped regardless of input.
 """
 
 import pytest
-from hypothesis import given, strategies as st, settings, assume
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
 from adversarial_debate.sandbox import (
-    SandboxConfig,
-    SandboxSecurityError,
-    validate_identifier,
-    validate_code_size,
-    validate_inputs,
-    validate_path_for_mount,
-    validate_sandbox_config,
-    generate_secure_temp_name,
     MAX_CODE_SIZE,
     MAX_INPUT_KEY_LENGTH,
-    MAX_INPUT_VALUE_SIZE,
+    SandboxConfig,
+    SandboxSecurityError,
+    generate_secure_temp_name,
+    validate_code_size,
+    validate_identifier,
+    validate_inputs,
+    validate_sandbox_config,
 )
-
 
 # =============================================================================
 # Property: Identifier validation blocks all dangerous patterns
 # =============================================================================
 
 DANGEROUS_IDENTIFIERS = [
-    "exec", "eval", "compile", "open", "input", "__import__",
-    "globals", "locals", "vars", "dir", "getattr", "setattr",
-    "delattr", "hasattr", "__builtins__", "__name__", "__file__",
+    "exec",
+    "eval",
+    "compile",
+    "open",
+    "input",
+    "__import__",
+    "globals",
+    "locals",
+    "vars",
+    "dir",
+    "getattr",
+    "setattr",
+    "delattr",
+    "hasattr",
+    "__builtins__",
+    "__name__",
+    "__file__",
 ]
 
 
@@ -70,17 +82,16 @@ def test_valid_identifiers_pass(identifier: str) -> None:
 # Property: Code size limits are enforced
 # =============================================================================
 
-@given(st.binary(min_size=MAX_CODE_SIZE + 1, max_size=MAX_CODE_SIZE + 1000))
-def test_large_code_rejected(data: bytes) -> None:
-    """Code exceeding size limit must be rejected."""
-    try:
-        code = data.decode("utf-8", errors="replace")
-    except Exception:
-        return  # Skip if can't decode
 
-    if len(code.encode("utf-8")) > MAX_CODE_SIZE:
-        with pytest.raises(SandboxSecurityError):
-            validate_code_size(code)
+def test_large_code_rejected() -> None:
+    """Code exceeding size limit must be rejected.
+
+    Avoid Hypothesis here: generating multi-megabyte examples is slow and
+    triggers Hypothesis health checks, while adding little extra coverage.
+    """
+    code = "x" * (MAX_CODE_SIZE + 1)
+    with pytest.raises(SandboxSecurityError):
+        validate_code_size(code)
 
 
 @given(st.text(max_size=MAX_CODE_SIZE // 2))
@@ -95,41 +106,44 @@ def test_small_code_accepted(code: str) -> None:
 # Property: Input validation maintains security invariants
 # =============================================================================
 
-@given(st.dictionaries(
-    keys=st.from_regex(r"[a-zA-Z_][a-zA-Z0-9_]{0,30}", fullmatch=True),
-    values=st.one_of(
-        st.integers(),
-        st.floats(allow_nan=False),
-        st.text(max_size=100),
-        st.booleans(),
-        st.lists(st.integers(), max_size=10),
-    ),
-    max_size=10,
-))
+
+@given(
+    st.dictionaries(
+        keys=st.from_regex(r"[a-zA-Z_][a-zA-Z0-9_]{0,30}", fullmatch=True),
+        values=st.one_of(
+            st.integers(),
+            st.floats(allow_nan=False),
+            st.text(max_size=100),
+            st.booleans(),
+            st.lists(st.integers(), max_size=10),
+        ),
+        max_size=10,
+    )
+)
 def test_valid_inputs_accepted(inputs: dict) -> None:
     """Valid inputs with safe keys and JSON-serializable values should pass."""
     # Filter out dangerous keys
     safe_inputs = {
-        k: v for k, v in inputs.items()
+        k: v
+        for k, v in inputs.items()
         if k not in DANGEROUS_IDENTIFIERS and len(k) <= MAX_INPUT_KEY_LENGTH
     }
     # Should not raise
     validate_inputs(safe_inputs)
 
 
-@given(st.dictionaries(
-    keys=st.text(min_size=1, max_size=20),
-    values=st.text(max_size=100),
-    min_size=1,
-    max_size=5,
-))
+@given(
+    st.dictionaries(
+        keys=st.text(min_size=1, max_size=20),
+        values=st.text(max_size=100),
+        min_size=1,
+        max_size=5,
+    )
+)
 def test_inputs_with_invalid_keys_rejected(inputs: dict) -> None:
     """Inputs with invalid Python identifier keys should be rejected."""
     # If any key is not a valid identifier, validation should fail
-    has_invalid_key = any(
-        not k.isidentifier() or k in DANGEROUS_IDENTIFIERS
-        for k in inputs.keys()
-    )
+    has_invalid_key = any(not k.isidentifier() or k in DANGEROUS_IDENTIFIERS for k in inputs)
 
     if has_invalid_key:
         with pytest.raises(SandboxSecurityError):
@@ -139,6 +153,7 @@ def test_inputs_with_invalid_keys_rejected(inputs: dict) -> None:
 # =============================================================================
 # Property: Secure temp names are unpredictable
 # =============================================================================
+
 
 @given(st.integers(min_value=1, max_value=100))
 def test_secure_temp_names_unique(count: int) -> None:
@@ -155,7 +170,7 @@ def test_secure_temp_names_format(prefix: str) -> None:
         assert name.startswith(prefix + "_")
         assert name.endswith(".py")
         # Should have 16 hex chars between prefix and .py
-        middle = name[len(prefix) + 1:-3]
+        middle = name[len(prefix) + 1 : -3]
         assert len(middle) == 16
         assert all(c in "0123456789abcdef" for c in middle)
 
@@ -163,6 +178,7 @@ def test_secure_temp_names_format(prefix: str) -> None:
 # =============================================================================
 # Property: Config validation catches invalid resource limits
 # =============================================================================
+
 
 @given(st.floats(min_value=-100, max_value=0))
 def test_invalid_cpu_limit_rejected(cpu_limit: float) -> None:
@@ -259,23 +275,26 @@ def test_invalid_docker_images_rejected(image: str) -> None:
 # Property: Allowed hosts validation
 # =============================================================================
 
-@given(st.lists(
-    st.from_regex(r"[a-zA-Z0-9][a-zA-Z0-9.-]{0,50}", fullmatch=True),
-    max_size=10,
-))
+
+@given(
+    st.lists(
+        st.from_regex(r"[a-zA-Z0-9][a-zA-Z0-9.-]{0,50}", fullmatch=True),
+        max_size=10,
+    )
+)
 def test_valid_hosts_accepted(hosts: list) -> None:
     """Valid hostnames should be accepted."""
     config = SandboxConfig(allowed_hosts=hosts)
     validate_sandbox_config(config)
 
 
-@given(st.lists(
-    st.text(min_size=1, max_size=20).filter(
-        lambda x: any(c in x for c in ";&|`$(){}<>")
-    ),
-    min_size=1,
-    max_size=3,
-))
+@given(
+    st.lists(
+        st.text(min_size=1, max_size=20).filter(lambda x: any(c in x for c in ";&|`$(){}<>")),
+        min_size=1,
+        max_size=3,
+    )
+)
 def test_hosts_with_shell_chars_rejected(hosts: list) -> None:
     """Hostnames with shell metacharacters must be rejected."""
     config = SandboxConfig(allowed_hosts=hosts)

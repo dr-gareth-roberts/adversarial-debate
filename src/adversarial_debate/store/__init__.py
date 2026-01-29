@@ -4,6 +4,7 @@ Beads are the unit of handoff, audit, and idempotency in the adversarial debate 
 Each agent action produces a bead that records what happened.
 """
 
+from ..exceptions import BeadValidationError, DuplicateBeadError
 from .beads import Artefact, ArtefactType, Bead, BeadStore, BeadType
 
 __all__ = [
@@ -12,4 +13,6 @@ __all__ = [
     "BeadType",
     "Artefact",
     "ArtefactType",
+    "DuplicateBeadError",
+    "BeadValidationError",
 ]

@@ -1,36 +1,51 @@
 """LLM provider abstraction for multi-provider support."""
 
+from __future__ import annotations
+
+from typing import Protocol
+
 from .anthropic import AnthropicProvider
 from .base import LLMProvider, LLMResponse, Message, ModelTier, ProviderConfig
 from .mock import MockProvider
 
+
 # Lazy imports for optional providers
-_openai_provider = None
-_azure_provider = None
-_ollama_provider = None
+class _ProviderFactory(Protocol):
+    def __call__(self, config: ProviderConfig | None = None) -> LLMProvider: ...
 
 
-def _get_openai_provider():
+_openai_provider: _ProviderFactory | None = None
+_azure_provider: _ProviderFactory | None = None
+_ollama_provider: _ProviderFactory | None = None
+
+
+def _get_openai_provider() -> _ProviderFactory:
     global _openai_provider
     if _openai_provider is None:
         from .openai import OpenAIProvider
+
         _openai_provider = OpenAIProvider
+    assert _openai_provider is not None
     return _openai_provider
 
 
-def _get_azure_provider():
+def _get_azure_provider() -> _ProviderFactory:
     global _azure_provider
     if _azure_provider is None:
         from .azure import AzureOpenAIProvider
+
         _azure_provider = AzureOpenAIProvider
+    assert _azure_provider is not None
     return _azure_provider
 
 
-def _get_ollama_provider():
+def _get_ollama_provider() -> _ProviderFactory:
     global _ollama_provider
     if _ollama_provider is None:
         from .ollama import OllamaProvider
+
         _ollama_provider = OllamaProvider
+    assert _ollama_provider is not None
     return _ollama_provider
 
 
@@ -53,18 +68,17 @@ def get_provider(name: str = "anthropic", config: ProviderConfig | None = None) 
     if name == "mock":
         return MockProvider(config)
     if name == "openai":
-        OpenAIProvider = _get_openai_provider()
-        return OpenAIProvider(config)
+        factory = _get_openai_provider()
+        return factory(config)
     if name == "azure":
-        AzureOpenAIProvider = _get_azure_provider()
-        return AzureOpenAIProvider(config)
+        factory = _get_azure_provider()
+        return factory(config)
     if name == "ollama":
-        OllamaProvider = _get_ollama_provider()
-        return OllamaProvider(config)
+        factory = _get_ollama_provider()
+        return factory(config)
     else:
         raise ValueError(
-            f"Unknown provider: {name}. "
-            f"Available: anthropic, openai, azure, ollama, mock"
+            f"Unknown provider: {name}. Available: anthropic, openai, azure, ollama, mock"
         )
 
 

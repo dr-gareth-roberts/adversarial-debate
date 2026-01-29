@@ -186,13 +186,15 @@ async def test_arbiter_flags_unknown_or_missing_ids(bead_store, mock_provider_fa
     )
     provider = mock_provider_factory([response])
     agent = Arbiter(provider, bead_store)
-    context = _make_context({
-        "findings": [
-            {"id": "EXPLOIT-001", "title": "Known ID", "agent": "ExploitAgent"},
-        ],
-        "changed_files": ["app.py"],
-        "original_task": "Test",
-    })
+    context = _make_context(
+        {
+            "findings": [
+                {"id": "EXPLOIT-001", "title": "Known ID", "agent": "ExploitAgent"},
+            ],
+            "changed_files": ["app.py"],
+            "original_task": "Test",
+        }
+    )
 
     output = await agent.run(context)
 

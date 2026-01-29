@@ -10,8 +10,6 @@
 #   - Runs debates in an isolated network
 #   - Uses read-only filesystems where possible
 #   - Limits container capabilities
-#   - Provides a separate sandbox for code execution
-#   - Prevents network access from the sandbox
 
 services:
   # ==========================================================================
@@ -27,18 +25,15 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=${LOG_FORMAT:-human}
-      # Use the isolated sandbox for code execution
-      - SANDBOX_ENABLED=true
-      - SANDBOX_NETWORK=sandbox_isolated
+      - ADVERSARIAL_LOG_LEVEL=${ADVERSARIAL_LOG_LEVEL:-INFO}
+      - ADVERSARIAL_LOG_FORMAT=${ADVERSARIAL_LOG_FORMAT:-text}
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
     volumes:
       # Read-only access to code being analyzed
       - ${TARGET_CODE_PATH:-.}:/target:ro
       # Output directory for results
       - ./output:/output
-      # Cache for incremental analysis
-      - debate_cache:/cache
     working_dir: /target
     command: ["run", "--time-budget", "${TIME_BUDGET:-300}", "/target"]
     networks:
@@ -50,56 +45,6 @@ services:
       - /tmp:size=200M,mode=1777
     cap_drop:
       - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
-
-  # ==========================================================================
-  # Code execution sandbox (completely isolated)
-  # ==========================================================================
-  sandbox:
-    image: python:3.11-slim
-    networks:
-      - sandbox_isolated
-    security_opt:
-      - no-new-privileges:true
-      - seccomp:unconfined
-    read_only: true
-    tmpfs:
-      - /tmp:size=100M,mode=1777
-      - /home/sandbox:size=50M,mode=1777
-    cap_drop:
-      - ALL
-    # No network access at all
-    # This container is for executing potentially malicious code snippets
-    user: "65534:65534"  # nobody user
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-          pids: 50
-        reservations:
-          cpus: '0.1'
-          memory: 128M
-    # Auto-restart if it crashes
-    restart: unless-stopped
-    # Health check
-    healthcheck:
-      test: ["CMD", "python", "-c", "print('ok')"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    profiles:
-      - sandbox
 
   # ==========================================================================
   # Isolated debate with Ollama (local LLM - no API keys needed)
@@ -111,13 +56,14 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://ollama-isolated:11434
       - LLM_PROVIDER=ollama
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - SANDBOX_ENABLED=true
+      - LLM_MODEL=${LLM_MODEL:-llama3.2}
+      - ADVERSARIAL_LOG_LEVEL=${ADVERSARIAL_LOG_LEVEL:-INFO}
+      - ADVERSARIAL_LOG_FORMAT=${ADVERSARIAL_LOG_FORMAT:-text}
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
     volumes:
       - ${TARGET_CODE_PATH:-.}:/target:ro
       - ./output:/output
-      - debate_cache:/cache
     working_dir: /target
     command: ["run", "--time-budget", "${TIME_BUDGET:-300}", "/target"]
     networks:
@@ -172,12 +118,14 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PARALLEL_AGENTS=${PARALLEL_AGENTS:-3}
+      - ADVERSARIAL_LOG_LEVEL=${ADVERSARIAL_LOG_LEVEL:-INFO}
+      - ADVERSARIAL_LOG_FORMAT=${ADVERSARIAL_LOG_FORMAT:-text}
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
     volumes:
       - ${TARGET_CODE_PATH:-.}:/target:ro
       - ./output:/output
-      - debate_cache:/cache
     working_dir: /target
     command: ["run", "--parallel", "${PARALLEL_AGENTS:-3}", "--time-budget", "${TIME_BUDGET:-300}", "/target"]
     networks:
@@ -210,14 +158,6 @@ networks:
     driver_opts:
       com.docker.network.bridge.enable_ip_masquerade: "true"
 
-  # Completely isolated network for sandbox execution
-  sandbox_isolated:
-    driver: bridge
-    internal: true  # No external access
-    ipam:
-      config:
-        - subnet: 172.29.0.0/16
-
   # Isolated network for Ollama
   ollama_network:
     driver: bridge
@@ -227,7 +167,5 @@ networks:
 # Volumes
 # ==========================================================================
 volumes:
-  debate_cache:
-    driver: local
   ollama_isolated_data:
     driver: local

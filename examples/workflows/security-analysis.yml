@@ -1,5 +1,5 @@
-# Example workflow for using adversarial-debate in your repository
-# Copy this file to your .github/workflows/ directory
+# Example workflow for using adversarial-debate in your repository.
+# Copy this file into your repo's `.github/workflows/` directory.
 
 name: Security Analysis
 

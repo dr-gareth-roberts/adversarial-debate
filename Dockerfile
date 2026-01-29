@@ -7,16 +7,16 @@
 #   docker build --build-arg INSTALL_ALL_PROVIDERS=true -t adversarial-debate:full .
 #
 # Run with Anthropic:
-#   docker run -e ANTHROPIC_API_KEY=your-key adversarial-debate analyze exploit /code
+#   docker run -e ANTHROPIC_API_KEY=your-key -e ADVERSARIAL_OUTPUT_DIR=/output -v $(pwd)/output:/output adversarial-debate analyze exploit /code
 #
 # Run with OpenAI:
-#   docker run -e OPENAI_API_KEY=your-key -e LLM_PROVIDER=openai adversarial-debate analyze exploit /code
+#   docker run -e OPENAI_API_KEY=your-key -e LLM_PROVIDER=openai -e ADVERSARIAL_OUTPUT_DIR=/output -v $(pwd)/output:/output adversarial-debate analyze exploit /code
 #
 # Run with Ollama (requires Ollama running):
-#   docker run --network host -e LLM_PROVIDER=ollama adversarial-debate analyze exploit /code
+#   docker run --network host -e LLM_PROVIDER=ollama -e ADVERSARIAL_OUTPUT_DIR=/output -v $(pwd)/output:/output adversarial-debate analyze exploit /code
 #
 # Mount code for analysis:
-#   docker run -v $(pwd):/code -e ANTHROPIC_API_KEY=your-key adversarial-debate analyze exploit /code
+#   docker run -v $(pwd):/code -v $(pwd)/output:/output -e ANTHROPIC_API_KEY=your-key -e ADVERSARIAL_OUTPUT_DIR=/output adversarial-debate analyze exploit /code
 
 # =============================================================================
 # Stage 1: Build stage
@@ -26,6 +26,7 @@ FROM python:3.11-slim AS builder
 # Build arguments for optional providers
 ARG INSTALL_ALL_PROVIDERS=false
 ARG INSTALL_OPENAI=false
+ARG INSTALL_DEV=false
 
 # Set build-time variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -49,10 +50,25 @@ COPY src/ src/
 
 # Install the package with optional providers
 RUN pip install --upgrade pip && \
+    EXTRAS="" && \
+    if [ "$INSTALL_DEV" = "true" ]; then \
+        EXTRAS="dev"; \
+    fi && \
     if [ "$INSTALL_ALL_PROVIDERS" = "true" ]; then \
-        pip install ".[all-providers]"; \
+        if [ -n "$EXTRAS" ]; then \
+            EXTRAS="$EXTRAS,all-providers"; \
+        else \
+            EXTRAS="all-providers"; \
+        fi; \
     elif [ "$INSTALL_OPENAI" = "true" ]; then \
-        pip install ".[openai]"; \
+        if [ -n "$EXTRAS" ]; then \
+            EXTRAS="$EXTRAS,openai"; \
+        else \
+            EXTRAS="openai"; \
+        fi; \
+    fi && \
+    if [ -n "$EXTRAS" ]; then \
+        pip install ".[${EXTRAS}]"; \
     else \
         pip install .; \
     fi

@@ -2,14 +2,14 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/dr-gareth-roberts/adversarial-debate/schemas/config.schema.json",
   "title": "Adversarial Debate Configuration",
-  "description": "Configuration schema for the adversarial-debate security analysis framework",
+  "description": "Configuration schema for adversarial-debate (matches adversarial_debate.config.Config)",
   "type": "object",
   "properties": {
     "provider": {
       "type": "object",
       "description": "LLM provider configuration",
       "properties": {
-        "name": {
+        "provider": {
           "type": "string",
           "enum": ["anthropic", "openai", "azure", "ollama", "mock"],
           "default": "anthropic",
@@ -28,6 +28,18 @@
           "type": "string",
           "description": "Default model to use"
         },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 120,
+          "description": "Request timeout in seconds"
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 3,
+          "description": "Maximum retry attempts"
+        },
         "temperature": {
           "type": "number",
           "minimum": 0,
@@ -42,14 +54,14 @@
           "default": 4096,
           "description": "Maximum tokens in model response"
         },
-        "timeout": {
-          "type": "number",
-          "minimum": 1,
-          "default": 120,
-          "description": "Request timeout in seconds"
+        "extra": {
+          "type": "object",
+          "default": {},
+          "description": "Provider-specific settings (e.g., Azure deployment / API version)",
+          "additionalProperties": true
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "logging": {
       "type": "object",
@@ -63,205 +75,159 @@
         },
         "format": {
           "type": "string",
-          "default": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-          "description": "Log message format"
+          "enum": ["text", "json"],
+          "default": "text",
+          "description": "Log output format"
         },
-        "file": {
+        "file_path": {
           "type": "string",
-          "description": "Log file path (logs to stderr if not set)"
+          "description": "Log file path (logs to stderr if not set)",
+          "default": null
+        },
+        "include_timestamps": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include timestamps in logs"
+        },
+        "include_agent_context": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include agent context in logs"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "sandbox": {
       "type": "object",
       "description": "Sandbox execution configuration",
       "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Whether to use sandboxed execution"
-        },
-        "image": {
-          "type": "string",
-          "default": "python:3.11-slim",
-          "description": "Docker image for sandbox"
-        },
-        "timeout": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 30,
-          "description": "Sandbox execution timeout in seconds"
-        },
         "memory_limit": {
           "type": "string",
+          "pattern": "^\\d+[kmgKMG]?$",
           "default": "256m",
           "description": "Memory limit for sandbox container"
         },
         "cpu_limit": {
           "type": "number",
-          "minimum": 0.1,
-          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "maximum": 16.0,
+          "default": 0.5,
           "description": "CPU limit for sandbox container"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300,
+          "default": 30,
+          "description": "Sandbox execution timeout in seconds"
+        },
+        "max_output_size_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1048576,
+          "description": "Max captured size per stream (stdout/stderr)"
         },
         "network_enabled": {
           "type": "boolean",
           "default": false,
           "description": "Whether to enable network access in sandbox"
-        }
-      }
-    },
-    "cache": {
-      "type": "object",
-      "description": "Analysis cache configuration",
-      "properties": {
+        },
+        "allowed_hosts": {
+          "type": "array",
+          "default": [],
+          "description": "Allowlisted hostnames (note: allowlisting is not enforced if network_enabled=true)",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9.-]+$"
+          }
+        },
+        "read_only": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use a read-only filesystem where possible"
+        },
+        "temp_size": {
+          "type": "string",
+          "pattern": "^\\d+[kmgKMG]?$",
+          "default": "64m",
+          "description": "Size of the temporary filesystem"
+        },
+        "use_docker": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use Docker for hardened sandboxing when available"
+        },
+        "docker_image": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._/-]*:[a-zA-Z0-9._-]+$",
+          "default": "python:3.11-slim",
+          "description": "Docker image for sandbox execution"
+        },
+        "use_subprocess": {
+          "type": "boolean",
+          "default": true,
+          "description": "Fallback to subprocess execution if Docker is unavailable"
+        },
+        "subprocess_timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "default": 10,
+          "description": "Timeout for the subprocess backend in seconds"
+        },
+
         "enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Whether to cache analysis results"
+          "description": "Legacy alias: if false, disables both use_docker and use_subprocess",
+          "deprecated": true
         },
-        "directory": {
-          "type": "string",
-          "default": ".adversarial-cache",
-          "description": "Cache directory path"
-        },
-        "ttl_hours": {
-          "type": "number",
-          "minimum": 0,
-          "default": 168,
-          "description": "Cache entry time-to-live in hours (default: 1 week)"
-        }
-      }
-    },
-    "output": {
-      "type": "object",
-      "description": "Output configuration",
-      "properties": {
-        "format": {
-          "type": "string",
-          "enum": ["json", "sarif", "html", "markdown"],
-          "default": "json",
-          "description": "Default output format"
-        },
-        "directory": {
-          "type": "string",
-          "default": "./output",
-          "description": "Output directory for results"
-        },
-        "include_metadata": {
-          "type": "boolean",
-          "default": true,
-          "description": "Include metadata in output"
-        },
-        "pretty": {
-          "type": "boolean",
-          "default": true,
-          "description": "Pretty-print JSON output"
-        }
-      }
-    },
-    "analysis": {
-      "type": "object",
-      "description": "Analysis behavior configuration",
-      "properties": {
-        "time_budget": {
-          "type": "integer",
-          "minimum": 10,
-          "default": 300,
-          "description": "Default time budget in seconds"
-        },
-        "parallel_agents": {
+        "timeout": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 10,
-          "default": 3,
-          "description": "Maximum number of parallel agent executions"
+          "maximum": 300,
+          "description": "Legacy alias for timeout_seconds",
+          "deprecated": true
         },
-        "default_exposure": {
+        "image": {
           "type": "string",
-          "enum": ["public", "authenticated", "internal"],
-          "default": "internal",
-          "description": "Default exposure level for code being analyzed"
+          "description": "Legacy alias for docker_image",
+          "deprecated": true
         },
-        "focus_areas": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Default focus areas for analysis"
+        "memory_limit_mb": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Legacy alias for memory_limit (in MB)",
+          "deprecated": true
+        },
+        "max_memory_mb": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Legacy alias for memory_limit (in MB)",
+          "deprecated": true
         }
-      }
+      },
+      "additionalProperties": false
     },
-    "agents": {
-      "type": "object",
-      "description": "Agent-specific configuration",
-      "properties": {
-        "exploit": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true
-            },
-            "model_tier": {
-              "type": "string",
-              "enum": ["local_small", "hosted_small", "hosted_large"],
-              "default": "hosted_large"
-            }
-          }
-        },
-        "break": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true
-            },
-            "model_tier": {
-              "type": "string",
-              "enum": ["local_small", "hosted_small", "hosted_large"],
-              "default": "hosted_large"
-            }
-          }
-        },
-        "chaos": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true
-            },
-            "model_tier": {
-              "type": "string",
-              "enum": ["local_small", "hosted_small", "hosted_large"],
-              "default": "hosted_small"
-            }
-          }
-        },
-        "arbiter": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true
-            },
-            "model_tier": {
-              "type": "string",
-              "enum": ["local_small", "hosted_small", "hosted_large"],
-              "default": "hosted_large"
-            }
-          }
-        }
-      }
+    "debug": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable debug mode"
     },
     "bead_ledger_path": {
       "type": "string",
-      "default": "./beads.jsonl",
+      "default": "./beads/ledger.jsonl",
       "description": "Path to the bead store ledger file"
     },
     "dry_run": {
       "type": "boolean",
       "default": false,
       "description": "Preview actions without executing"
+    },
+    "output_dir": {
+      "type": "string",
+      "default": "./output",
+      "description": "Output directory for results"
     }
   },
   "additionalProperties": false

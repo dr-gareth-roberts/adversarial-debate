@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .exceptions import ConfigNotFoundError, ConfigValidationError
+from .sandbox import SandboxConfig, SandboxSecurityError, validate_sandbox_config
 
 
 @dataclass
@@ -20,26 +21,38 @@ class ProviderConfig:
     Attributes:
         provider: Provider name (anthropic, openai, etc.)
         api_key: API key for the provider (loaded from env if not set)
+        base_url: Optional provider base URL override
         model: Default model to use
         timeout_seconds: Request timeout
         max_retries: Maximum retry attempts
         temperature: Default temperature for generation
         max_tokens: Maximum tokens for response
+        extra: Provider-specific settings
     """
 
     provider: str = "anthropic"
     api_key: str | None = None
+    base_url: str | None = None
     model: str = "claude-sonnet-4-20250514"
     timeout_seconds: int = 120
     max_retries: int = 3
     temperature: float = 0.7
     max_tokens: int = 4096
+    extra: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Load API key from environment if not provided."""
         if self.api_key is None:
             env_var = f"{self.provider.upper()}_API_KEY"
             self.api_key = os.environ.get(env_var)
+            if self.api_key is None and self.provider == "azure":
+                self.api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+
+        if self.base_url is None:
+            env_var = f"{self.provider.upper()}_BASE_URL"
+            self.base_url = os.environ.get(env_var)
+            if self.base_url is None and self.provider == "azure":
+                self.base_url = os.environ.get("AZURE_OPENAI_ENDPOINT")
 
     def validate(self) -> None:
         """Validate the configuration."""
@@ -62,11 +75,13 @@ class ProviderConfig:
         """Convert to dict (excludes api_key for safety)."""
         return {
             "provider": self.provider,
+            "base_url": self.base_url,
             "model": self.model,
             "timeout_seconds": self.timeout_seconds,
             "max_retries": self.max_retries,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "extra": self.extra,
         }
 
 
@@ -116,48 +131,54 @@ class LoggingConfig:
         }
 
 
-@dataclass
-class SandboxConfig:
-    """Configuration for the sandbox executor.
+def _parse_sandbox_config(data: dict[str, Any]) -> SandboxConfig:
+    """Parse sandbox config, including legacy keys."""
+    legacy_enabled = data.get("enabled")
 
-    Attributes:
-        enabled: Whether to use sandboxed execution
-        timeout_seconds: Execution timeout
-        memory_limit_mb: Memory limit in megabytes
-        network_enabled: Allow network access
-        docker_image: Docker image to use for sandboxing
-    """
+    # Support both new keys (sandbox.SandboxConfig) and legacy keys (config.SandboxConfig).
+    memory_limit: str | None = data.get("memory_limit")
+    if memory_limit is None:
+        memory_limit_mb = data.get("memory_limit_mb") or data.get("max_memory_mb")
+        if isinstance(memory_limit_mb, int):
+            memory_limit = f"{memory_limit_mb}m"
 
-    enabled: bool = True
-    timeout_seconds: int = 30
-    memory_limit_mb: int = 512
-    network_enabled: bool = False
-    docker_image: str = "python:3.11-slim"
+    cpu_limit = data.get("cpu_limit")
+    timeout_seconds = data.get("timeout_seconds") or data.get("timeout")
+    docker_image = data.get("docker_image") or data.get("image")
 
-    def validate(self) -> None:
-        """Validate the configuration."""
-        if self.timeout_seconds <= 0:
-            raise ConfigValidationError(
-                "Timeout must be positive",
-                field="timeout_seconds",
-                value=self.timeout_seconds,
-            )
-        if self.memory_limit_mb <= 0:
-            raise ConfigValidationError(
-                "Memory limit must be positive",
-                field="memory_limit_mb",
-                value=self.memory_limit_mb,
-            )
+    use_docker = data.get("use_docker")
+    use_subprocess = data.get("use_subprocess")
+    if legacy_enabled is False:
+        use_docker = False
+        use_subprocess = False
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dict."""
-        return {
-            "enabled": self.enabled,
-            "timeout_seconds": self.timeout_seconds,
-            "memory_limit_mb": self.memory_limit_mb,
-            "network_enabled": self.network_enabled,
-            "docker_image": self.docker_image,
-        }
+    kwargs: dict[str, Any] = {}
+    if memory_limit is not None:
+        kwargs["memory_limit"] = str(memory_limit)
+    if cpu_limit is not None:
+        kwargs["cpu_limit"] = float(cpu_limit)
+    if timeout_seconds is not None:
+        kwargs["timeout_seconds"] = int(timeout_seconds)
+    if data.get("max_output_size_bytes") is not None:
+        kwargs["max_output_size_bytes"] = int(data["max_output_size_bytes"])
+    if data.get("network_enabled") is not None:
+        kwargs["network_enabled"] = bool(data["network_enabled"])
+    if data.get("allowed_hosts") is not None:
+        kwargs["allowed_hosts"] = [str(h) for h in data["allowed_hosts"]]
+    if data.get("read_only") is not None:
+        kwargs["read_only"] = bool(data["read_only"])
+    if data.get("temp_size") is not None:
+        kwargs["temp_size"] = str(data["temp_size"])
+    if use_docker is not None:
+        kwargs["use_docker"] = bool(use_docker)
+    if docker_image is not None:
+        kwargs["docker_image"] = str(docker_image)
+    if use_subprocess is not None:
+        kwargs["use_subprocess"] = bool(use_subprocess)
+    if data.get("subprocess_timeout") is not None:
+        kwargs["subprocess_timeout"] = int(data["subprocess_timeout"])
+
+    return SandboxConfig(**kwargs)
 
 
 @dataclass
@@ -182,7 +203,10 @@ class Config:
         """Validate all configuration sections."""
         self.provider.validate()
         self.logging.validate()
-        self.sandbox.validate()
+        try:
+            validate_sandbox_config(self.sandbox)
+        except SandboxSecurityError as e:
+            raise ConfigValidationError(str(e), field="sandbox") from e
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict."""
@@ -282,11 +306,13 @@ class Config:
             provider=ProviderConfig(
                 provider=provider_data.get("provider", "anthropic"),
                 api_key=provider_data.get("api_key"),
+                base_url=provider_data.get("base_url"),
                 model=provider_data.get("model", "claude-sonnet-4-20250514"),
                 timeout_seconds=provider_data.get("timeout_seconds", 120),
                 max_retries=provider_data.get("max_retries", 3),
                 temperature=provider_data.get("temperature", 0.7),
                 max_tokens=provider_data.get("max_tokens", 4096),
+                extra=dict(provider_data.get("extra", {})),
             ),
             logging=LoggingConfig(
                 level=logging_data.get("level", "INFO"),
@@ -295,13 +321,7 @@ class Config:
                 include_timestamps=logging_data.get("include_timestamps", True),
                 include_agent_context=logging_data.get("include_agent_context", True),
             ),
-            sandbox=SandboxConfig(
-                enabled=sandbox_data.get("enabled", True),
-                timeout_seconds=sandbox_data.get("timeout_seconds", 30),
-                memory_limit_mb=sandbox_data.get("memory_limit_mb", 512),
-                network_enabled=sandbox_data.get("network_enabled", False),
-                docker_image=sandbox_data.get("docker_image", "python:3.11-slim"),
-            ),
+            sandbox=_parse_sandbox_config(sandbox_data),
             debug=data.get("debug", False),
             dry_run=data.get("dry_run", False),
             output_dir=data.get("output_dir", "./output"),

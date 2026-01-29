@@ -8,6 +8,7 @@ from .base import LLMProvider, LLMResponse, Message, ModelTier, ProviderConfig, 
 
 try:
     import anthropic
+
     HAS_ANTHROPIC = True
 except ImportError:
     HAS_ANTHROPIC = False
@@ -28,9 +29,7 @@ class AnthropicProvider(LLMProvider):
 
     def __init__(self, config: ProviderConfig | None = None):
         if not HAS_ANTHROPIC:
-            raise ImportError(
-                "anthropic package not installed. Run: pip install anthropic"
-            )
+            raise ImportError("anthropic package not installed. Run: pip install anthropic")
 
         config = config or ProviderConfig()
         config.api_key = config.api_key or os.getenv("ANTHROPIC_API_KEY")
@@ -65,9 +64,7 @@ class AnthropicProvider(LLMProvider):
         max_tokens: int | None = None,
         json_mode: bool = False,
     ) -> LLMResponse:
-        model, temperature, max_tokens = self._resolve_params(
-            model, temperature, max_tokens
-        )
+        model, temperature, max_tokens = self._resolve_params(model, temperature, max_tokens)
 
         # Extract system message if present
         system_content: str | None = None
@@ -121,9 +118,7 @@ class AnthropicProvider(LLMProvider):
 
         Yields content chunks as they arrive from the API.
         """
-        model, temperature, max_tokens = self._resolve_params(
-            model, temperature, max_tokens
-        )
+        model, temperature, max_tokens = self._resolve_params(model, temperature, max_tokens)
 
         # Extract system message if present
         system_content: str | None = None

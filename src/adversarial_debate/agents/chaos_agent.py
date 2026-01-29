@@ -18,9 +18,11 @@ from ..providers import Message, ModelTier
 from ..store import BeadType
 from .base import Agent, AgentContext, AgentOutput
 
-CHAOS_AGENT_SYSTEM_PROMPT = """You are a chaos engineer designing experiments to test system resilience.
+CHAOS_AGENT_SYSTEM_PROMPT = """You are a chaos engineer designing experiments to test system
+resilience.
 
-Your job is to identify how code might fail under adverse conditions and design safe experiments to verify resilience.
+Your job is to identify how code might fail under adverse conditions and design safe experiments to
+verify resilience.
 
 ## Chaos Experiment Categories
 
@@ -89,39 +91,39 @@ You MUST respond with valid JSON in this exact format:
   "dependencies_detected": [
     {
       "name": "PostgreSQL Database",
-      "type": "database|cache|api|filesystem|queue",
+      "type": "database",
       "evidence": ["connection = psycopg2.connect()", "cursor.execute(query)"],
-      "criticality": "critical|important|optional"
+      "criticality": "critical"
     }
   ],
   "resilience_analysis": {
-    "has_timeouts": true/false,
-    "has_retries": true/false,
-    "has_circuit_breaker": true/false,
-    "has_fallbacks": true/false,
-    "has_health_checks": true/false,
-    "overall_resilience_score": 0-100
+    "has_timeouts": true,
+    "has_retries": false,
+    "has_circuit_breaker": false,
+    "has_fallbacks": true,
+    "has_health_checks": false,
+    "overall_resilience_score": 70
   },
   "experiments": [
     {
       "id": "CHAOS-001",
       "title": "Short description of experiment",
-      "category": "dependency_failure|network_chaos|resource_pressure|time_chaos|state_chaos",
+      "category": "dependency_failure",
       "target_dependency": "What component/service is targeted",
-      "failure_mode": "unavailable|timeout|slow|error|corrupt|intermittent",
-      "severity_if_vulnerable": "CRITICAL|HIGH|MEDIUM|LOW",
+      "failure_mode": "timeout",
+      "severity_if_vulnerable": "HIGH",
       "experiment": {
         "description": "What this experiment does",
         "method": "How to run it (tc, toxiproxy, docker stop, etc)",
         "duration_seconds": 60,
-        "safe_to_automate": true/false,
-        "requires_isolation": true/false,
+        "safe_to_automate": false,
+        "requires_isolation": true,
         "rollback": "How to restore normal operation"
       },
       "hypothesis": {
         "expected_resilient_behavior": "What should happen if code is resilient",
         "predicted_actual_behavior": "What will actually happen based on code analysis",
-        "prediction_confidence": 0.0-1.0
+        "prediction_confidence": 0.6
       },
       "evidence": {
         "code_location": "file.py:42",
@@ -135,10 +137,22 @@ You MUST respond with valid JSON in this exact format:
       }
     }
   ],
-  "confidence": 0.0-1.0,
+  "confidence": 0.8,
   "assumptions": ["assumptions made"],
   "unknowns": ["things that couldn't be determined"]
 }
+
+Field constraints:
+- dependencies_detected[].type: one of database|cache|api|filesystem|queue
+- dependencies_detected[].criticality: one of critical|important|optional
+- experiments[].category:
+  one of dependency_failure|network_chaos|resource_pressure|time_chaos|state_chaos
+- experiments[].failure_mode: one of unavailable|timeout|slow|error|corrupt|intermittent
+- experiments[].severity_if_vulnerable: one of CRITICAL|HIGH|MEDIUM|LOW
+- has_timeouts, has_retries, has_circuit_breaker, has_fallbacks, has_health_checks: boolean
+- overall_resilience_score: integer 0-100
+- prediction_confidence, confidence: float 0.0-1.0
+- safe_to_automate, requires_isolation: boolean
 
 ## Rules
 
@@ -208,14 +222,16 @@ class ChaosAgent(Agent):
         if function_name:
             user_message_parts.append(f"**Function/Class:** `{function_name}`")
 
-        user_message_parts.extend([
-            f"**Language:** {language}",
-            "",
-            f"```{language}",
-            target_code,
-            "```",
-            "",
-        ])
+        user_message_parts.extend(
+            [
+                f"**Language:** {language}",
+                "",
+                f"```{language}",
+                target_code,
+                "```",
+                "",
+            ]
+        )
 
         # Add infrastructure context
         user_message_parts.append("## Infrastructure Context")
@@ -254,24 +270,26 @@ class ChaosAgent(Agent):
             user_message_parts.append("")
 
         # Final instructions
-        user_message_parts.extend([
-            "## Your Mission",
-            "",
-            "Design chaos experiments to test this code's resilience. For each experiment:",
-            "1. What failure are you simulating?",
-            "2. What is the expected resilient behavior?",
-            "3. What will actually happen (based on code analysis)?",
-            "4. How to run the experiment safely",
-            "5. How to remediate any gaps found",
-            "",
-            "Focus on:",
-            "- What happens when dependencies fail?",
-            "- What happens under resource pressure?",
-            "- What happens with network issues?",
-            "- What happens with timing/clock issues?",
-            "",
-            "Respond with valid JSON matching the schema in your instructions.",
-        ])
+        user_message_parts.extend(
+            [
+                "## Your Mission",
+                "",
+                "Design chaos experiments to test this code's resilience. For each experiment:",
+                "1. What failure are you simulating?",
+                "2. What is the expected resilient behavior?",
+                "3. What will actually happen (based on code analysis)?",
+                "4. How to run the experiment safely",
+                "5. How to remediate any gaps found",
+                "",
+                "Focus on:",
+                "- What happens when dependencies fail?",
+                "- What happens under resource pressure?",
+                "- What happens with network issues?",
+                "- What happens with timing/clock issues?",
+                "",
+                "Respond with valid JSON matching the schema in your instructions.",
+            ]
+        )
 
         return [
             Message(role="system", content=CHAOS_AGENT_SYSTEM_PROMPT),
@@ -322,7 +340,8 @@ class ChaosAgent(Agent):
             "resilience_score": resilience_analysis.get("overall_resilience_score", 0),
             "risk_assessment": risk_assessment,
             "high_risk_count": sum(
-                1 for e in normalized_experiments
+                1
+                for e in normalized_experiments
                 if e.get("severity_if_vulnerable") in ("CRITICAL", "HIGH")
             ),
         }
@@ -349,7 +368,8 @@ class ChaosAgent(Agent):
                     "by_category": self._count_by_category(normalized_experiments),
                     "by_severity": self._count_by_severity(normalized_experiments),
                     "automatable": sum(
-                        1 for e in normalized_experiments
+                        1
+                        for e in normalized_experiments
                         if e.get("experiment", {}).get("safe_to_automate", False)
                     ),
                 },
@@ -447,23 +467,15 @@ class ChaosAgent(Agent):
 
         # Count high-severity vulnerabilities
         critical_count = sum(
-            1 for e in experiments
-            if e.get("severity_if_vulnerable") == "CRITICAL"
+            1 for e in experiments if e.get("severity_if_vulnerable") == "CRITICAL"
         )
-        high_count = sum(
-            1 for e in experiments
-            if e.get("severity_if_vulnerable") == "HIGH"
-        )
+        high_count = sum(1 for e in experiments if e.get("severity_if_vulnerable") == "HIGH")
 
         # Get resilience score
         resilience_score = resilience_analysis.get("overall_resilience_score", 50)
 
         # Calculate risk score (higher = more risk)
-        risk_score = (
-            critical_count * 25 +
-            high_count * 15 +
-            (100 - resilience_score)
-        )
+        risk_score = critical_count * 25 + high_count * 15 + (100 - resilience_score)
 
         # Normalize to 0-100
         risk_score = min(100, max(0, risk_score))

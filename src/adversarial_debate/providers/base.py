@@ -3,11 +3,11 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class ModelTier(str, Enum):
+class ModelTier(StrEnum):
     """Model tier for routing decisions.
 
     Different agents may require different model capabilities:
@@ -15,6 +15,7 @@ class ModelTier(str, Enum):
     - HOSTED_SMALL: Balanced - for monitoring, routine planning
     - HOSTED_LARGE: Most capable - for deep analysis, strategic synthesis
     """
+
     LOCAL_SMALL = "local_small"
     HOSTED_SMALL = "hosted_small"
     HOSTED_LARGE = "hosted_large"
@@ -23,6 +24,7 @@ class ModelTier(str, Enum):
 @dataclass
 class Message:
     """A message in a conversation."""
+
     role: str  # "system", "user", "assistant"
     content: str
 
@@ -30,6 +32,7 @@ class Message:
 @dataclass
 class ProviderConfig:
     """Configuration for an LLM provider."""
+
     api_key: str | None = None
     base_url: str | None = None
     model: str | None = None
@@ -42,6 +45,7 @@ class ProviderConfig:
 @dataclass
 class LLMResponse:
     """Response from an LLM provider."""
+
     content: str
     model: str
     usage: dict[str, int]  # input_tokens, output_tokens
@@ -52,6 +56,7 @@ class LLMResponse:
 @dataclass
 class StreamChunk:
     """A chunk from a streaming response."""
+
     content: str
     is_final: bool = False
     finish_reason: str | None = None
@@ -156,7 +161,7 @@ class LLMProvider(ABC):
         return (
             model or self.config.model or self._default_model(),
             temperature if temperature is not None else self.config.temperature,
-            max_tokens or self.config.max_tokens,
+            max_tokens if max_tokens is not None else self.config.max_tokens,
         )
 
     @abstractmethod

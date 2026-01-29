@@ -9,9 +9,9 @@ Baseline workflow:
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
-
+from typing import Any
 
 SEVERITY_ORDER: dict[str, int] = {
     "CRITICAL": 4,
@@ -80,4 +80,3 @@ def diff_bundles(current: dict[str, Any], baseline: dict[str, Any]) -> BaselineD
     fixed = [base[fp] for fp in sorted(set(base) - set(cur))]
     existing = [cur[fp] for fp in sorted(set(cur) & set(base))]
     return BaselineDiff(new=new, fixed=fixed, existing=existing)
-

@@ -3,14 +3,14 @@
 import pytest
 
 from adversarial_debate.verdict import (
-    VerdictDecision,
-    ExploitationDifficulty,
-    RemediationEffort,
-    FindingValidation,
-    ValidatedFinding,
-    RejectedFinding,
-    RemediationTask,
     ArbiterVerdict,
+    ExploitationDifficulty,
+    FindingValidation,
+    RejectedFinding,
+    RemediationEffort,
+    RemediationTask,
+    ValidatedFinding,
+    VerdictDecision,
 )
 
 

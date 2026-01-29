@@ -2,9 +2,6 @@
 
 import argparse
 import json
-import tempfile
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -35,13 +32,18 @@ class TestCreateParser:
     def test_global_arguments(self):
         """Test global CLI arguments."""
         parser = create_parser()
-        args = parser.parse_args([
-            "--config", "config.json",
-            "--log-level", "DEBUG",
-            "--json-output",
-            "--dry-run",
-            "-o", "output.json",
-        ])
+        args = parser.parse_args(
+            [
+                "--config",
+                "config.json",
+                "--log-level",
+                "DEBUG",
+                "--json-output",
+                "--dry-run",
+                "-o",
+                "output.json",
+            ]
+        )
         assert args.config == "config.json"
         assert args.log_level == "DEBUG"
         assert args.json_output is True
@@ -51,11 +53,9 @@ class TestCreateParser:
     def test_analyze_command(self):
         """Test analyze subcommand."""
         parser = create_parser()
-        args = parser.parse_args([
-            "analyze", "exploit", "src/api.py",
-            "--focus", "injection", "auth",
-            "--timeout", "60"
-        ])
+        args = parser.parse_args(
+            ["analyze", "exploit", "src/api.py", "--focus", "injection", "auth", "--timeout", "60"]
+        )
         assert args.command == "analyze"
         assert args.agent == "exploit"
         assert args.target == "src/api.py"
@@ -78,11 +78,9 @@ class TestCreateParser:
     def test_orchestrate_command(self):
         """Test orchestrate subcommand."""
         parser = create_parser()
-        args = parser.parse_args([
-            "orchestrate", "src/",
-            "--time-budget", "600",
-            "--exposure", "public"
-        ])
+        args = parser.parse_args(
+            ["orchestrate", "src/", "--time-budget", "600", "--exposure", "public"]
+        )
         assert args.command == "orchestrate"
         assert args.target == "src/"
         assert args.time_budget == 600
@@ -91,10 +89,7 @@ class TestCreateParser:
     def test_verdict_command(self):
         """Test verdict subcommand."""
         parser = create_parser()
-        args = parser.parse_args([
-            "verdict", "findings.json",
-            "--context", "context.json"
-        ])
+        args = parser.parse_args(["verdict", "findings.json", "--context", "context.json"])
         assert args.command == "verdict"
         assert args.findings == "findings.json"
         assert args.context == "context.json"
@@ -102,12 +97,9 @@ class TestCreateParser:
     def test_run_command(self):
         """Test run subcommand."""
         parser = create_parser()
-        args = parser.parse_args([
-            "run", "src/",
-            "--time-budget", "900",
-            "--parallel", "5",
-            "--skip-verdict"
-        ])
+        args = parser.parse_args(
+            ["run", "src/", "--time-budget", "900", "--parallel", "5", "--skip-verdict"]
+        )
         assert args.command == "run"
         assert args.target == "src/"
         assert args.time_budget == 900
@@ -135,13 +127,14 @@ class TestLoadConfig:
 
         assert config.dry_run is True
 
-    def test_load_with_output(self):
+    def test_load_with_output(self, tmp_path):
         """Test output_dir is set from args."""
+        output_path = tmp_path / "results"
         parser = create_parser()
-        args = parser.parse_args(["--output", "/tmp/results"])
+        args = parser.parse_args(["--output", str(output_path)])
         config = load_config(args)
 
-        assert config.output_dir == "/tmp/results"
+        assert config.output_dir == str(output_path)
 
 
 class TestPrintFunctions:
@@ -158,6 +151,7 @@ class TestPrintFunctions:
     def test_print_json_with_non_serializable(self, capsys):
         """Test JSON printing with non-serializable objects."""
         from datetime import datetime
+
         data = {"timestamp": datetime(2024, 1, 1, 12, 0, 0)}
         print_json(data)
         captured = capsys.readouterr()
@@ -199,10 +193,7 @@ class TestAnalyzeCommand:
         test_file.write_text("print('hello')")
 
         parser = create_parser()
-        args = parser.parse_args([
-            "--dry-run",
-            "analyze", "exploit", str(test_file)
-        ])
+        args = parser.parse_args(["--dry-run", "analyze", "exploit", str(test_file)])
         config = load_config(args)
 
         result = await cmd_analyze(args, config)
@@ -239,10 +230,7 @@ class TestOrchestrateCommand:
         (tmp_path / "test.py").write_text("print('hello')")
 
         parser = create_parser()
-        args = parser.parse_args([
-            "--dry-run",
-            "orchestrate", str(tmp_path)
-        ])
+        args = parser.parse_args(["--dry-run", "orchestrate", str(tmp_path)])
         config = load_config(args)
 
         result = await cmd_orchestrate(args, config)
@@ -297,10 +285,7 @@ class TestVerdictCommand:
         findings_file.write_text('{"findings": [{"title": "test"}]}')
 
         parser = create_parser()
-        args = parser.parse_args([
-            "--dry-run",
-            "verdict", str(findings_file)
-        ])
+        args = parser.parse_args(["--dry-run", "verdict", str(findings_file)])
         config = load_config(args)
 
         result = await cmd_verdict(args, config)

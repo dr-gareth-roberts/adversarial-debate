@@ -764,16 +764,16 @@ The sandbox provides isolated code execution for testing exploit payloads.
 from adversarial_debate import SandboxExecutor, SandboxConfig
 
 config = SandboxConfig(
-    enabled=True,
     timeout_seconds=30,
-    memory_limit_mb=256,
+    memory_limit="256m",
+    cpu_limit=0.5,
     use_docker=True,
 )
 executor = SandboxExecutor(config)
 
 # Execute Python code
 result = await executor.execute_python("print('hello')")
-print(result.stdout)  # "hello\n"
+print(result.output)  # "hello\n"
 print(result.exit_code)  # 0
 
 # Execute with timeout
@@ -785,11 +785,18 @@ print(result.timed_out)  # True
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enabled` | `bool` | `True` | Enable sandbox execution |
-| `timeout_seconds` | `int` | `30` | Execution timeout |
-| `memory_limit_mb` | `int` | `256` | Memory limit |
-| `use_docker` | `bool` | `True` | Use Docker backend |
+| `memory_limit` | `str` | `"256m"` | Docker memory limit (best-effort for subprocess) |
+| `cpu_limit` | `float` | `0.5` | Docker CPU limit |
+| `timeout_seconds` | `int` | `30` | Default execution timeout |
+| `max_output_size_bytes` | `int` | `1048576` | Max captured output per stream |
 | `network_enabled` | `bool` | `False` | Allow network access |
+| `allowed_hosts` | `list[str]` | `[]` | Allowlist (not enforced if `network_enabled=True`) |
+| `read_only` | `bool` | `True` | Run container with read-only rootfs |
+| `temp_size` | `str` | `"64m"` | Docker tmpfs size |
+| `use_docker` | `bool` | `True` | Use Docker backend |
+| `docker_image` | `str` | `"python:3.11-slim"` | Docker image |
+| `use_subprocess` | `bool` | `True` | Allow subprocess fallback when Docker unavailable |
+| `subprocess_timeout` | `int` | `10` | Subprocess timeout cap (seconds) |
 
 ### ExecutionResult
 
@@ -797,8 +804,8 @@ print(result.timed_out)  # True
 @dataclass
 class ExecutionResult:
     success: bool
-    stdout: str
-    stderr: str
+    output: str
+    error: str
     exit_code: int
     timed_out: bool
     resource_exceeded: bool
@@ -831,7 +838,16 @@ print(config.bead_ledger_path)   # "./beads/ledger.jsonl"
 |----------|-------------|---------|
 | `LLM_PROVIDER` | Provider name | `"anthropic"` |
 | `LLM_MODEL` | Model override | (provider default) |
+| `LLM_TIMEOUT` | Provider request timeout (seconds) | `"120"` |
 | `ANTHROPIC_API_KEY` | Anthropic API key | (required for anthropic) |
+| `OPENAI_API_KEY` | OpenAI API key | (required for openai) |
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI API key | (required for azure) |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint | (required for azure) |
+| `OLLAMA_BASE_URL` | Ollama base URL | `"http://localhost:11434"` |
+| `ADVERSARIAL_DEBUG` | Enable debug mode | `"false"` |
+| `ADVERSARIAL_DRY_RUN` | Enable dry run mode | `"false"` |
+| `ADVERSARIAL_LOG_LEVEL` | Log level | `"INFO"` |
+| `ADVERSARIAL_LOG_FORMAT` | Log format (`text` or `json`) | `"text"` |
 | `ADVERSARIAL_BEAD_LEDGER` | Ledger path | `"./beads/ledger.jsonl"` |
 | `ADVERSARIAL_OUTPUT_DIR` | Output directory | `"./output"` |
 
@@ -842,6 +858,8 @@ print(config.bead_ledger_path)   # "./beads/ledger.jsonl"
   "provider": {
     "provider": "anthropic",
     "model": "claude-sonnet-4-20250514",
+    "timeout_seconds": 120,
+    "max_retries": 3,
     "temperature": 0.7,
     "max_tokens": 4096
   },
@@ -850,12 +868,18 @@ print(config.bead_ledger_path)   # "./beads/ledger.jsonl"
     "format": "json"
   },
   "sandbox": {
-    "enabled": true,
     "timeout_seconds": 30,
-    "use_docker": true
+    "memory_limit": "256m",
+    "cpu_limit": 0.5,
+    "use_docker": true,
+    "docker_image": "python:3.11-slim",
+    "use_subprocess": true,
+    "network_enabled": false
   },
   "bead_ledger_path": "./beads/ledger.jsonl",
-  "output_dir": "./output"
+  "output_dir": "./output",
+  "debug": false,
+  "dry_run": false
 }
 ```
 

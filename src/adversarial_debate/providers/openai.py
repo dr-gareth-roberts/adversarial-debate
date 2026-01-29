@@ -7,6 +7,7 @@ from .base import LLMProvider, LLMResponse, Message, ModelTier, ProviderConfig
 
 try:
     import openai
+
     HAS_OPENAI = True
 except ImportError:
     HAS_OPENAI = False
@@ -28,9 +29,7 @@ class OpenAIProvider(LLMProvider):
 
     def __init__(self, config: ProviderConfig | None = None):
         if not HAS_OPENAI:
-            raise ImportError(
-                "openai package not installed. Run: pip install openai"
-            )
+            raise ImportError("openai package not installed. Run: pip install openai")
 
         config = config or ProviderConfig()
         config.api_key = config.api_key or os.getenv("OPENAI_API_KEY")
@@ -65,14 +64,11 @@ class OpenAIProvider(LLMProvider):
         max_tokens: int | None = None,
         json_mode: bool = False,
     ) -> LLMResponse:
-        model, temperature, max_tokens = self._resolve_params(
-            model, temperature, max_tokens
-        )
+        model, temperature, max_tokens = self._resolve_params(model, temperature, max_tokens)
 
         # Convert messages to OpenAI format
         api_messages: list[dict[str, str]] = [
-            {"role": msg.role, "content": msg.content}
-            for msg in messages
+            {"role": msg.role, "content": msg.content} for msg in messages
         ]
 
         # Build request

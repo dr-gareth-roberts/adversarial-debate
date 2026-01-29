@@ -10,8 +10,8 @@ class TestAzureOpenAIProvider:
 
     def test_import_error_without_package(self, monkeypatch):
         """Test that ImportError is raised without openai package."""
-        import sys
         import builtins
+        import sys
 
         # Mock the import to fail
         original_import = builtins.__import__
@@ -22,12 +22,11 @@ class TestAzureOpenAIProvider:
             return original_import(name, *args, **kwargs)
 
         monkeypatch.setattr(builtins, "__import__", mock_import)
-        monkeypatch.delitem(
-            sys.modules, "adversarial_debate.providers.azure", raising=False
-        )
+        monkeypatch.delitem(sys.modules, "adversarial_debate.providers.azure", raising=False)
 
         try:
             from adversarial_debate.providers.azure import AzureOpenAIProvider
+
             with pytest.raises(ImportError, match="openai package not installed"):
                 AzureOpenAIProvider(ProviderConfig(base_url="https://test.openai.azure.com"))
         except ImportError:
@@ -46,10 +45,7 @@ class TestAzureOpenAIProvider:
         pytest.importorskip("openai")
         from adversarial_debate.providers.azure import AzureOpenAIProvider
 
-        config = ProviderConfig(
-            api_key="test-key",
-            base_url="https://test.openai.azure.com"
-        )
+        config = ProviderConfig(api_key="test-key", base_url="https://test.openai.azure.com")
         provider = AzureOpenAIProvider(config)
         assert provider.name == "azure"
 
@@ -77,7 +73,7 @@ class TestAzureOpenAIProvider:
         config = ProviderConfig(
             api_key="test-key",
             base_url="https://test.openai.azure.com",
-            extra={"deployment": "my-gpt4-deployment"}
+            extra={"deployment": "my-gpt4-deployment"},
         )
         provider = AzureOpenAIProvider(config)
 
@@ -91,10 +87,7 @@ class TestAzureOpenAIProvider:
         pytest.importorskip("openai")
         from adversarial_debate.providers.azure import AzureOpenAIProvider
 
-        config = ProviderConfig(
-            api_key="test-key",
-            base_url="https://test.openai.azure.com"
-        )
+        config = ProviderConfig(api_key="test-key", base_url="https://test.openai.azure.com")
         provider = AzureOpenAIProvider(config)
 
         assert provider.get_model_for_tier(ModelTier.LOCAL_SMALL) == "gpt-4o-mini"

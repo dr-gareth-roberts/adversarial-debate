@@ -114,7 +114,7 @@ class MockProvider(LLMProvider):
                         "file": file_path,
                         "line_start": 12,
                         "line_end": 15,
-                        "snippet": "query = f\"SELECT id, email FROM users WHERE id = {user_id}\"",
+                        "snippet": 'query = f"SELECT id, email FROM users WHERE id = {user_id}"',
                     },
                     "exploit": {
                         "description": "Injects SQL to bypass filtering and dump user rows.",
@@ -125,7 +125,9 @@ class MockProvider(LLMProvider):
                     },
                     "remediation": {
                         "immediate": "Use parameterized queries.",
-                        "code_fix": "cursor.execute(\"SELECT id, email FROM users WHERE id = ?\", (user_id,))",
+                        "code_fix": (
+                            'cursor.execute("SELECT id, email FROM users WHERE id = ?", (user_id,))'
+                        ),
                         "defense_in_depth": ["Add input validation", "Use least-privilege DB user"],
                     },
                 },
@@ -152,7 +154,7 @@ class MockProvider(LLMProvider):
                     },
                     "remediation": {
                         "immediate": "Avoid shell=True and pass args as a list.",
-                        "code_fix": "subprocess.check_output([\"report.sh\", user_id])",
+                        "code_fix": 'subprocess.check_output(["report.sh", user_id])',
                         "defense_in_depth": ["Allowlist commands", "Run under a restricted user"],
                     },
                 },
@@ -187,7 +189,9 @@ class MockProvider(LLMProvider):
                         "description": "Allocates a huge payload to force memory use.",
                         "code": "load_session(b'A' * 10_000_000)",
                         "expected_behavior": "Reject oversized payloads.",
-                        "vulnerable_behavior": "Process allocates large buffer and slows or crashes.",
+                        "vulnerable_behavior": (
+                            "Process allocates large buffer and slows or crashes."
+                        ),
                     },
                     "impact": "Possible slowdown or crash under load.",
                     "remediation": {
@@ -403,7 +407,9 @@ class MockProvider(LLMProvider):
     def _arbiter_payload(self) -> dict[str, Any]:
         return {
             "decision": "WARN",
-            "decision_rationale": "Issues are plausible with meaningful impact, but mitigations may exist.",
+            "decision_rationale": (
+                "Issues are plausible with meaningful impact, but mitigations may exist."
+            ),
             "blocking_issues": [],
             "warnings": [
                 {
@@ -422,7 +428,9 @@ class MockProvider(LLMProvider):
                     "data_at_risk": ["user emails"],
                     "remediation_effort": "HOURS",
                     "suggested_fix": "Parameterize SQL queries.",
-                    "fix_code_example": "cursor.execute(\"SELECT id, email FROM users WHERE id = ?\", (user_id,))",
+                    "fix_code_example": (
+                        'cursor.execute("SELECT id, email FROM users WHERE id = ?", (user_id,))'
+                    ),
                     "workaround": "Apply WAF rule as temporary mitigation.",
                     "confidence": 0.78,
                 }

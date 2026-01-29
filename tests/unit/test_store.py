@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import json
-import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 from adversarial_debate.store import (
-    BeadStore,
-    Bead,
-    BeadType,
     Artefact,
+    ArtefactType,
+    Bead,
+    BeadStore,
+    BeadType,
     DuplicateBeadError,
-    BeadValidationError,
 )
 
 
@@ -48,10 +46,8 @@ class TestBead:
     def test_bead_with_artefacts(self) -> None:
         """Test creating a bead with artefacts."""
         artefact = Artefact(
-            artefact_id="A-001",
-            artefact_type="code_snippet",
-            content="def test(): pass",
-            metadata={"language": "python"},
+            type=ArtefactType.FILE,
+            ref="src/app.py",
         )
 
         bead = Bead(
@@ -71,7 +67,7 @@ class TestBead:
         )
 
         assert len(bead.artefacts) == 1
-        assert bead.artefacts[0].artefact_type == "code_snippet"
+        assert bead.artefacts[0].type == ArtefactType.FILE
 
     def test_bead_to_dict(self, sample_bead: Bead) -> None:
         """Test converting bead to dictionary."""
@@ -91,7 +87,7 @@ class TestBead:
             "task_id": "task-001",
             "timestamp_iso": "2024-01-01T12:00:00Z",
             "agent": "TestAgent",
-            "bead_type": "EXPLOIT_ANALYSIS",
+            "bead_type": BeadType.EXPLOIT_ANALYSIS.value,
             "payload": {"test": "data"},
             "artefacts": [],
             "idempotency_key": "IK-001",
@@ -126,23 +122,23 @@ class TestBeadStore:
 
     def test_add_bead(self, store: BeadStore, sample_bead: Bead) -> None:
         """Test adding a bead to the store."""
-        store.add_bead(sample_bead)
+        store.append(sample_bead)
 
         # Verify bead was added
-        retrieved = store.get_bead(sample_bead.bead_id)
+        retrieved = store.get_by_id(sample_bead.bead_id)
         assert retrieved is not None
         assert retrieved.bead_id == sample_bead.bead_id
 
     def test_add_duplicate_bead(self, store: BeadStore, sample_bead: Bead) -> None:
         """Test that adding duplicate bead raises error."""
-        store.add_bead(sample_bead)
+        store.append_idempotent(sample_bead)
 
         with pytest.raises(DuplicateBeadError):
-            store.add_bead(sample_bead)
+            store.append_idempotent(sample_bead)
 
     def test_get_bead_not_found(self, store: BeadStore) -> None:
         """Test getting a non-existent bead."""
-        bead = store.get_bead("nonexistent-id")
+        bead = store.get_by_id("nonexistent-id")
         assert bead is None
 
     def test_query_by_thread(self, store: BeadStore) -> None:
@@ -180,8 +176,8 @@ class TestBeadStore:
             unknowns=[],
         )
 
-        store.add_bead(bead1)
-        store.add_bead(bead2)
+        store.append(bead1)
+        store.append(bead2)
 
         # Query by thread
         results = store.query(thread_id="thread-A")
@@ -222,8 +218,8 @@ class TestBeadStore:
             unknowns=[],
         )
 
-        store.add_bead(bead1)
-        store.add_bead(bead2)
+        store.append(bead1)
+        store.append(bead2)
 
         results = store.query(agent="ExploitAgent")
         assert len(results) == 1
@@ -263,8 +259,8 @@ class TestBeadStore:
             unknowns=[],
         )
 
-        store.add_bead(bead1)
-        store.add_bead(bead2)
+        store.append(bead1)
+        store.append(bead2)
 
         results = store.query(bead_type=BeadType.EXPLOIT_ANALYSIS)
         assert len(results) == 1
@@ -288,7 +284,7 @@ class TestBeadStore:
             unknowns=[],
         )
 
-        store.add_bead(bead)
+        store.append(bead)
 
         # Search should find the bead
         results = store.search("SQL injection")
@@ -319,11 +315,11 @@ class TestBeadStore:
             assumptions=[],
             unknowns=[],
         )
-        store1.add_bead(bead)
+        store1.append(bead)
 
         # Create second store and verify bead exists
         store2 = BeadStore(ledger_path)
-        retrieved = store2.get_bead("B-persist-001")
+        retrieved = store2.get_by_id("B-persist-001")
 
         assert retrieved is not None
         assert retrieved.payload == {"test": "persistence"}
@@ -345,7 +341,7 @@ class TestBeadStore:
             assumptions=[],
             unknowns=[],
         )
-        store.add_bead(bead)
+        store.append(bead)
 
         # Read ledger file and verify format
         ledger_content = store.ledger_path.read_text()
@@ -375,7 +371,7 @@ class TestBeadStore:
                 assumptions=[],
                 unknowns=[],
             )
-            store.add_bead(bead)
+            store.append(bead)
 
         # Query with limit
         results = store.query(limit=5)
@@ -405,7 +401,7 @@ class TestBeadStore:
                 assumptions=[],
                 unknowns=[],
             )
-            store.add_bead(bead)
+            store.append(bead)
 
         all_beads = store.get_all()
         assert len(all_beads) == 3
@@ -414,30 +410,18 @@ class TestBeadStore:
 class TestBeadIdGeneration:
     """Tests for bead ID generation."""
 
-    def test_idempotent_bead_id(self) -> None:
-        """Test that same inputs produce same bead ID."""
-        from adversarial_debate.store import compute_bead_id
+    def test_generate_bead_id_format(self) -> None:
+        """Test that generated bead IDs have expected format."""
+        bead_id = BeadStore.generate_bead_id()
+        assert bead_id.startswith("B-")
+        # Format: B-YYYYMMDD-HHMMSS-NNNNNN
+        parts = bead_id.split("-")
+        assert len(parts) == 4
+        assert len(parts[1]) == 8  # YYYYMMDD
+        assert len(parts[2]) == 6  # HHMMSS
+        assert len(parts[3]) == 6  # microseconds
 
-        id1 = compute_bead_id("agent", "run-001", {"key": "value"})
-        id2 = compute_bead_id("agent", "run-001", {"key": "value"})
-
-        assert id1 == id2
-
-    def test_different_inputs_different_ids(self) -> None:
-        """Test that different inputs produce different IDs."""
-        from adversarial_debate.store import compute_bead_id
-
-        id1 = compute_bead_id("agent", "run-001", {"key": "value1"})
-        id2 = compute_bead_id("agent", "run-001", {"key": "value2"})
-
-        assert id1 != id2
-
-    def test_bead_id_format(self) -> None:
-        """Test that bead IDs have expected format."""
-        from adversarial_debate.store import compute_bead_id
-
-        bead_id = compute_bead_id("agent", "run-001", {"key": "value"})
-
-        # Should be a hex string (SHA-256 produces 64 hex chars)
-        assert len(bead_id) == 64
-        assert all(c in "0123456789abcdef" for c in bead_id)
+    def test_generate_bead_id_unique(self) -> None:
+        """Test that generated bead IDs are unique across calls."""
+        ids = {BeadStore.generate_bead_id() for _ in range(100)}
+        assert len(ids) == 100

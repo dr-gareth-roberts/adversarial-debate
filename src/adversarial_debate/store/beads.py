@@ -1,7 +1,9 @@
 """Bead store implementation - append-only JSONL ledger for coordination."""
 
+import contextlib
 import fcntl
 import json
+import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -9,9 +11,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from ..exceptions import BeadValidationError, DuplicateBeadError
+
 
 class BeadType(str, Enum):
     """Allowed bead types."""
+
     BOARD_HEALTH = "board_health"
     PROPOSAL = "proposal"
     CRITIQUE = "critique"
@@ -34,6 +39,7 @@ class BeadType(str, Enum):
 
 class ArtefactType(str, Enum):
     """Allowed artefact types."""
+
     TRELLO_CARD = "trello_card"
     FILE = "file"
     COMMIT = "commit"
@@ -46,6 +52,7 @@ class ArtefactType(str, Enum):
 @dataclass
 class Artefact:
     """Reference to an artefact produced or consumed by a bead."""
+
     type: ArtefactType
     ref: str
 
@@ -63,6 +70,7 @@ class Bead:
 
     Required fields match beads/schema.json.
     """
+
     bead_id: str
     parent_bead_id: str
     thread_id: str
@@ -80,13 +88,30 @@ class Bead:
     def __post_init__(self) -> None:
         """Validate bead on creation."""
         if not 0.0 <= self.confidence <= 1.0:
-            raise ValueError(f"confidence must be in [0, 1], got {self.confidence}")
+            raise BeadValidationError(
+                f"confidence must be in [0, 1], got {self.confidence}",
+                bead_id=self.bead_id,
+                field="confidence",
+                details={"value": self.confidence},
+            )
         if len(self.bead_id) < 3:
-            raise ValueError(f"bead_id must be at least 3 chars, got {self.bead_id!r}")
+            raise BeadValidationError(
+                f"bead_id must be at least 3 chars, got {self.bead_id!r}",
+                bead_id=self.bead_id,
+                field="bead_id",
+            )
         if len(self.thread_id) < 3:
-            raise ValueError(f"thread_id must be at least 3 chars, got {self.thread_id!r}")
+            raise BeadValidationError(
+                f"thread_id must be at least 3 chars, got {self.thread_id!r}",
+                bead_id=self.bead_id,
+                field="thread_id",
+            )
         if len(self.idempotency_key) < 3:
-            raise ValueError(f"idempotency_key must be at least 3 chars, got {self.idempotency_key!r}")
+            raise BeadValidationError(
+                f"idempotency_key must be at least 3 chars, got {self.idempotency_key!r}",
+                bead_id=self.bead_id,
+                field="idempotency_key",
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to JSON-serializable dict."""
@@ -165,9 +190,26 @@ class BeadStore:
 
     def _ensure_ledger_exists(self) -> None:
         """Create ledger file and directory if needed."""
-        self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        secure_dir_mode = 0o700
+        secure_file_mode = 0o600
+
+        self.ledger_path.parent.mkdir(parents=True, exist_ok=True, mode=secure_dir_mode)
+        with contextlib.suppress(OSError):
+            os.chmod(self.ledger_path.parent, secure_dir_mode)
+
         if not self.ledger_path.exists():
-            self.ledger_path.touch()
+            try:
+                fd = os.open(
+                    str(self.ledger_path),
+                    os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                    secure_file_mode,
+                )
+                os.close(fd)
+            except FileExistsError:
+                pass
+
+        with contextlib.suppress(OSError):
+            os.chmod(self.ledger_path, secure_file_mode)
 
     def append(self, bead: Bead) -> None:
         """Append a bead to the ledger (thread-safe).
@@ -181,6 +223,40 @@ class BeadStore:
         with open(self.ledger_path, "a") as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
             try:
+                f.write(line)
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+    def append_idempotent(self, bead: Bead) -> None:
+        """Append a bead only if its idempotency key is not already present.
+
+        This is intended for operations where retries are expected and emitting
+        duplicate beads would be misleading.
+
+        Raises:
+            DuplicateBeadError: If the idempotency key already exists in the ledger.
+        """
+        line = bead.to_json() + "\n"
+
+        # Atomic check + append under the same lock.
+        with open(self.ledger_path, "a+") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                f.seek(0)
+                for raw in f:
+                    raw = raw.strip()
+                    if not raw:
+                        continue
+                    try:
+                        existing = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if existing.get("idempotency_key") == bead.idempotency_key:
+                        raise DuplicateBeadError(
+                            "Duplicate idempotency_key",
+                            idempotency_key=bead.idempotency_key,
+                        )
+                f.seek(0, 2)  # end of file
                 f.write(line)
             finally:
                 fcntl.flock(f.fileno(), fcntl.LOCK_UN)
@@ -263,6 +339,34 @@ class BeadStore:
             if bead.bead_id == bead_id:
                 return bead
         return None
+
+    def get_bead(self, bead_id: str) -> Bead | None:
+        """Backwards-compatible alias for get_by_id()."""
+        return self.get_by_id(bead_id)
+
+    def get_all(self) -> list[Bead]:
+        """Get all beads in the ledger."""
+        return list(self.iter_all())
+
+    def search(self, query: str, *, limit: int | None = None) -> list[Bead]:
+        """Naive full-text search across bead JSON.
+
+        This is intended for small-to-medium ledgers. For large ledgers, prefer
+        external indexing or a dedicated store.
+        """
+        q = query.strip().lower()
+        if not q:
+            return []
+
+        matches: list[Bead] = []
+        for bead in self.iter_all():
+            haystack = json.dumps(bead.to_dict(), separators=(",", ":"), default=str).lower()
+            if q in haystack:
+                matches.append(bead)
+
+        if limit is not None:
+            return matches[-limit:]
+        return matches
 
     def get_children(self, parent_bead_id: str) -> list[Bead]:
         """Get all beads that reference a parent bead."""

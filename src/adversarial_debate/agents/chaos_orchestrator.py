@@ -29,9 +29,12 @@ from ..providers import Message, ModelTier
 from ..store import BeadType
 from .base import Agent, AgentContext, AgentOutput
 
-CHAOS_ORCHESTRATOR_SYSTEM_PROMPT = """You are a red team coordinator planning adversarial attacks against code changes.
+CHAOS_ORCHESTRATOR_SYSTEM_PROMPT = """\
+You are a red team coordinator planning adversarial attacks against
+code changes.
 
-Your job is to analyze code changes and create an attack plan that assigns work to three specialized agents:
+Your job is to analyze code changes and create an attack plan that assigns work to three specialized
+agents:
 
 ## Red Team Agents
 
@@ -68,28 +71,28 @@ You MUST respond with valid JSON in this exact format:
     "files": [
       {
         "file_path": "path/to/file.py",
-        "risk_score": 0-100,
+        "risk_score": 85,
         "risk_factors": ["handles user input", "database queries"],
         "recommended_agents": ["ExploitAgent", "BreakAgent"],
         "attack_vectors": ["SQL injection", "boundary values"],
-        "exposure": "public|authenticated|internal",
-        "data_sensitivity": "high|medium|low"
+        "exposure": "public",
+        "data_sensitivity": "high"
       }
     ],
-    "total_risk_score": 0-100,
+    "total_risk_score": 85,
     "highest_risk_file": "path/to/file.py",
     "primary_concerns": ["list of main security/stability concerns"],
     "recommended_focus_areas": ["where to spend most effort"]
   },
-  "risk_level": "LOW|MEDIUM|HIGH|CRITICAL",
+  "risk_level": "HIGH",
   "risk_factors": ["list of overall risk factors"],
   "attacks": [
     {
       "id": "ATK-001",
-      "agent": "BreakAgent|ExploitAgent|ChaosAgent",
+      "agent": "ExploitAgent",
       "target_file": "path/to/file.py",
-      "target_function": "function_name or null",
-      "priority": 1-5,
+      "target_function": null,
+      "priority": 1,
       "attack_vectors": [
         {
           "name": "SQL Injection",
@@ -102,7 +105,7 @@ You MUST respond with valid JSON in this exact format:
       ],
       "time_budget_seconds": 60,
       "rationale": "Why this attack is important",
-      "depends_on": ["ATK-000"],
+      "depends_on": [],
       "can_parallel_with": ["ATK-002", "ATK-003"],
       "hints": ["Check the query construction on line 42"]
     }
@@ -123,10 +126,20 @@ You MUST respond with valid JSON in this exact format:
     }
   ],
   "recommendations": ["Overall recommendations for the red team"],
-  "confidence": 0.0-1.0,
+  "confidence": 0.8,
   "assumptions": ["assumptions made"],
   "unknowns": ["things that couldn't be determined"]
 }
+
+Field constraints:
+- risk_level: one of LOW|MEDIUM|HIGH|CRITICAL
+- attacks[].agent: one of BreakAgent|ExploitAgent|ChaosAgent
+- risk_score, total_risk_score: integer 0-100
+- priority: integer 1-5 (1 = highest priority)
+- confidence: float 0.0-1.0
+- exposure: one of public|authenticated|internal
+- data_sensitivity: one of high|medium|low
+- target_function: string or null
 
 ## Rules
 
@@ -191,52 +204,51 @@ class ChaosOrchestrator(Agent):
         user_parts = ["## Code Changes to Analyze", ""]
 
         if changed_files:
-            user_parts.append("### Changed Files")
-            user_parts.append("")
+            user_parts.extend(["### Changed Files", ""])
             for f in changed_files:
                 if isinstance(f, dict):
-                    user_parts.append(f"- `{f.get('path', f)}` ({f.get('change_type', 'modified')})")
+                    path = f.get("path", f)
+                    change_type = f.get("change_type", "modified")
+                    user_parts.append(f"- `{path}` ({change_type})")
                 else:
                     user_parts.append(f"- `{f}`")
             user_parts.append("")
 
         if patches:
-            user_parts.append("### Patches")
-            user_parts.append("")
+            user_parts.extend(["### Patches", ""])
             for file_path, patch in patches.items():
-                user_parts.append(f"**{file_path}:**")
-                user_parts.append("```diff")
+                user_parts.extend([f"**{file_path}:**", "```diff"])
                 # Limit patch size
                 if len(patch) > 2000:
                     user_parts.append(patch[:2000] + "\n... (truncated)")
                 else:
                     user_parts.append(patch)
-                user_parts.append("```")
-                user_parts.append("")
+                user_parts.extend(["```", ""])
         elif patches_summary:
-            user_parts.append("### Patches Summary")
-            user_parts.append("")
-            user_parts.append(patches_summary)
-            user_parts.append("")
+            user_parts.extend(["### Patches Summary", "", patches_summary, ""])
 
         # Codebase context
-        user_parts.extend([
-            "## Codebase Context",
-            "",
-            f"- **Framework:** {framework}",
-            f"- **Language:** {language}",
-            f"- **Exposure:** {exposure}",
-            "",
-        ])
+        user_parts.extend(
+            [
+                "## Codebase Context",
+                "",
+                f"- **Framework:** {framework}",
+                f"- **Language:** {language}",
+                f"- **Exposure:** {exposure}",
+                "",
+            ]
+        )
 
         # Historical findings
         if historical_findings:
-            user_parts.append("## Historical Red Team Data")
-            user_parts.append("")
-            user_parts.append("Previous findings in similar code:")
+            user_parts.extend(
+                ["## Historical Red Team Data", "", "Previous findings in similar code:"]
+            )
             for finding in historical_findings[:5]:  # Limit to 5
                 if isinstance(finding, dict):
-                    user_parts.append(f"- {finding.get('type', 'unknown')}: {finding.get('description', '')}")
+                    kind = finding.get("type", "unknown")
+                    description = finding.get("description", "")
+                    user_parts.append(f"- {kind}: {description}")
                 else:
                     user_parts.append(f"- {finding}")
             user_parts.append("")
@@ -244,32 +256,35 @@ class ChaosOrchestrator(Agent):
         # Agent success rates
         if agent_success_rates:
             user_parts.append("Agent success rates:")
-            for agent, rate in agent_success_rates.items():
-                user_parts.append(f"- {agent}: {rate}")
+            user_parts.extend(f"- {agent}: {rate}" for agent, rate in agent_success_rates.items())
             user_parts.append("")
 
-        # Time budget
-        user_parts.extend([
-            "## Constraints",
-            "",
-            f"- **Time budget:** {time_budget} seconds total",
-            "- **Max parallel agents:** 3",
-            "",
-        ])
+        # Constraints
+        user_parts.extend(
+            [
+                "## Constraints",
+                "",
+                f"- **Time budget:** {time_budget} seconds total",
+                "- **Max parallel agents:** 3",
+                "",
+            ]
+        )
 
         # Mission
-        user_parts.extend([
-            "## Your Mission",
-            "",
-            "Create an attack plan that:",
-            "1. Identifies the attack surface in these changes",
-            "2. Assigns appropriate red team agents to targets",
-            "3. Prioritizes based on risk",
-            "4. Optimizes for parallel execution",
-            "5. Skips low-value targets with explanation",
-            "",
-            "Respond with valid JSON matching the schema in your instructions.",
-        ])
+        user_parts.extend(
+            [
+                "## Your Mission",
+                "",
+                "Create an attack plan that:",
+                "1. Identifies the attack surface in these changes",
+                "2. Assigns appropriate red team agents to targets",
+                "3. Prioritizes based on risk",
+                "4. Optimizes for parallel execution",
+                "5. Skips low-value targets with explanation",
+                "",
+                "Respond with valid JSON matching the schema in your instructions.",
+            ]
+        )
 
         return [
             Message(role="system", content=CHAOS_ORCHESTRATOR_SYSTEM_PROMPT),
@@ -430,18 +445,17 @@ class ChaosOrchestrator(Agent):
                 priority = AttackPriority.MEDIUM
 
             # Parse attack vectors
-            vectors = []
-            for v in a.get("attack_vectors", []):
-                vectors.append(
-                    AttackVector(
-                        name=v.get("name", ""),
-                        description=v.get("description", ""),
-                        category=v.get("category", ""),
-                        payload_hints=v.get("payload_hints", []),
-                        expected_behavior=v.get("expected_behavior", ""),
-                        success_indicators=v.get("success_indicators", []),
-                    )
+            vectors = [
+                AttackVector(
+                    name=v.get("name", ""),
+                    description=v.get("description", ""),
+                    category=v.get("category", ""),
+                    payload_hints=v.get("payload_hints", []),
+                    expected_behavior=v.get("expected_behavior", ""),
+                    success_indicators=v.get("success_indicators", []),
                 )
+                for v in a.get("attack_vectors", [])
+            ]
 
             attack = Attack(
                 id=a.get("id", f"ATK-{i + 1:03d}"),
@@ -463,34 +477,26 @@ class ChaosOrchestrator(Agent):
 
     def _parse_parallel_groups(self, groups_data: list[dict[str, Any]]) -> list[ParallelGroup]:
         """Parse parallel execution groups from response."""
-        groups = []
-
-        for i, g in enumerate(groups_data):
-            groups.append(
-                ParallelGroup(
-                    group_id=g.get("group_id", f"PG-{i + 1:03d}"),
-                    attack_ids=g.get("attack_ids", []),
-                    estimated_duration_seconds=g.get("estimated_duration_seconds", 60),
-                    resource_requirements=g.get("resource_requirements", {}),
-                )
+        return [
+            ParallelGroup(
+                group_id=g.get("group_id", f"PG-{i + 1:03d}"),
+                attack_ids=g.get("attack_ids", []),
+                estimated_duration_seconds=g.get("estimated_duration_seconds", 60),
+                resource_requirements=g.get("resource_requirements", {}),
             )
-
-        return groups
+            for i, g in enumerate(groups_data)
+        ]
 
     def _parse_skipped(self, skipped_data: list[dict[str, Any]]) -> list[SkipReason]:
         """Parse skipped items from response."""
-        skipped = []
-
-        for s in skipped_data:
-            skipped.append(
-                SkipReason(
-                    target=s.get("target", ""),
-                    reason=s.get("reason", ""),
-                    category=s.get("category", "low_risk"),
-                )
+        return [
+            SkipReason(
+                target=s.get("target", ""),
+                reason=s.get("reason", ""),
+                category=s.get("category", "low_risk"),
             )
-
-        return skipped
+            for s in skipped_data
+        ]
 
     def _parse_risk_level(self, level: str) -> RiskLevel:
         """Parse risk level string."""
@@ -538,7 +544,7 @@ class ChaosOrchestrator(Agent):
         Returns:
             AgentContext configured for the assigned agent
         """
-        inputs = {
+        inputs: dict[str, Any] = {
             "code": code,
             "file_path": attack.target_file,
             "function_name": attack.target_function,
@@ -550,13 +556,23 @@ class ChaosOrchestrator(Agent):
         }
 
         # Add vector-specific hints
+        payload_hints: list[str] = []
+        success_indicators: list[str] = []
         for vector in attack.attack_vectors:
             if vector.payload_hints:
-                inputs.setdefault("payload_hints", []).extend(vector.payload_hints)
+                payload_hints.extend(vector.payload_hints)
             if vector.success_indicators:
-                inputs.setdefault("success_indicators", []).extend(vector.success_indicators)
+                success_indicators.extend(vector.success_indicators)
+
+        if payload_hints:
+            inputs["payload_hints"] = payload_hints
+        if success_indicators:
+            inputs["success_indicators"] = success_indicators
 
         return AgentContext(
+            run_id=base_context.run_id,
+            timestamp_iso=base_context.timestamp_iso,
+            policy=base_context.policy,
             thread_id=base_context.thread_id,
             task_id=f"{base_context.task_id}-{attack.id}" if base_context.task_id else attack.id,
             inputs=inputs,
@@ -593,9 +609,9 @@ class ChaosOrchestrator(Agent):
                     batches.append(batch)
 
             # Add any remaining attacks as individual batches
-            for attack in plan.attacks:
-                if attack.id not in processed:
-                    batches.append([attack])
+            batches.extend(
+                [attack] for attack in plan.attacks if attack.id not in processed
+            )
 
             return batches
 
@@ -604,11 +620,9 @@ class ChaosOrchestrator(Agent):
         completed: set[str] = set()
 
         while len(completed) < len(plan.attacks):
-            batch = plan.get_ready_attacks(completed)
-            if not batch:
+            if not (batch := plan.get_ready_attacks(completed)):
                 # No ready attacks - might have circular deps or all done
-                remaining = [a for a in plan.attacks if a.id not in completed]
-                if remaining:
+                if remaining := [a for a in plan.attacks if a.id not in completed]:
                     batch = [remaining[0]]  # Break cycle
                 else:
                     break

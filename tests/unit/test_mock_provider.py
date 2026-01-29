@@ -18,7 +18,10 @@ def test_get_provider_mock() -> None:
 async def test_mock_provider_returns_json() -> None:
     provider = MockProvider()
     messages = [
-        Message(role="system", content="You are the Arbiter - the final judge of security and quality findings."),
+        Message(
+            role="system",
+            content="You are the Arbiter - the final judge of security and quality findings.",
+        ),
         Message(role="user", content="**File:** `example.py`"),
     ]
     response = await provider.complete(messages, json_mode=True)

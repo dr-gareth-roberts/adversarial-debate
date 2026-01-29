@@ -1,10 +1,13 @@
 """Cache manager for incremental analysis."""
 
+import logging
 from pathlib import Path
 from typing import Any
 
 from .file_cache import CacheEntry, FileCache
 from .hash import hash_analysis_inputs, hash_content
+
+logger = logging.getLogger(__name__)
 
 
 class CacheManager:
@@ -179,8 +182,8 @@ class CacheManager:
                 if entry and entry.file_path == file_path:
                     self._cache.delete(entry.key)
                     count += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to inspect cache entry %s: %s", path, exc, exc_info=True)
 
         return count
 

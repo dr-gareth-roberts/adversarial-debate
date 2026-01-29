@@ -127,10 +127,21 @@ The ChaosOrchestrator analyzes the inputs and creates a coordinated attack plan.
 
 ```python
 from adversarial_debate.agents import ChaosOrchestrator
-from adversarial_debate.providers import get_provider
+from adversarial_debate.providers import ProviderConfig as RuntimeProviderConfig, get_provider
 from adversarial_debate.store import BeadStore
 
-provider = get_provider(config.provider.provider)
+provider = get_provider(
+    config.provider.provider,
+    RuntimeProviderConfig(
+        api_key=config.provider.api_key,
+        base_url=config.provider.base_url,
+        model=config.provider.model,
+        temperature=config.provider.temperature,
+        max_tokens=config.provider.max_tokens,
+        timeout=float(config.provider.timeout_seconds),
+        extra={"max_retries": config.provider.max_retries, **config.provider.extra},
+    ),
+)
 bead_store = BeadStore(config.bead_ledger_path)
 orchestrator = ChaosOrchestrator(provider, bead_store)
 ```
@@ -219,93 +230,79 @@ attack_plan = AttackPlan(
 
 ## Stage 3: Parallel Analysis
 
-Red team agents execute their assigned attacks concurrently.
+The current CLI runs the three core agents in parallel over the collected code (it does not execute
+each `AttackPlan.Attack` as an individual scheduled task).
 
 ### Agent Instantiation
 
 ```python
-from adversarial_debate.agents import ExploitAgent, BreakAgent, ChaosAgent
+from adversarial_debate.agents import BreakAgent, ChaosAgent, ExploitAgent
 
-agents = {
-    AgentType.EXPLOIT_AGENT: ExploitAgent(provider, bead_store),
-    AgentType.BREAK_AGENT: BreakAgent(provider, bead_store),
-    AgentType.CHAOS_AGENT: ChaosAgent(provider, bead_store),
+exploit = ExploitAgent(provider, bead_store)
+breaker = BreakAgent(provider, bead_store)
+chaos = ChaosAgent(provider, bead_store)
+```
+
+### Execution Strategy (Current CLI)
+
+The CLI uses `asyncio.gather(...)` to run the three agents concurrently, bounded by `--parallel`:
+
+```python
+analysis_inputs = {
+    "code": code,
+    "file_path": file_path,
+    "file_paths": files,
 }
-```
 
-### Execution Strategy
-
-The pipeline uses the attack plan's parallel groups to maximize concurrency:
-
-```python
-async def execute_attacks(attack_plan: AttackPlan) -> list[AgentOutput]:
-    all_outputs = []
-    completed_attacks = set()
-    
-    # Process in batches based on dependencies
-    while len(completed_attacks) < len(attack_plan.attacks):
-        # Get attacks ready to run (dependencies satisfied)
-        ready = attack_plan.get_ready_attacks(completed_attacks)
-        
-        # Run ready attacks in parallel
-        tasks = []
-        for attack in ready:
-            agent = agents[attack.agent]
-            context = create_attack_context(attack, attack_plan)
-            tasks.append(run_with_timeout(agent, context, attack.time_budget_seconds))
-        
-        # Wait for batch to complete
-        batch_outputs = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # Process results
-        for attack, output in zip(ready, batch_outputs):
-            if isinstance(output, Exception):
-                output = create_error_output(attack, output)
-            all_outputs.append(output)
-            completed_attacks.add(attack.id)
-    
-    return all_outputs
-```
-
-### Context for Each Attack
-
-Each agent receives a context tailored to its attack assignment:
-
-```python
-def create_attack_context(attack: Attack, plan: AttackPlan) -> AgentContext:
-    return AgentContext(
-        run_id=plan.plan_id,
-        timestamp_iso=datetime.now(UTC).isoformat(),
+async def run_agent(agent: Agent, task_id: str) -> AgentOutput:
+    context = AgentContext(
+        run_id=run_id,
+        timestamp_iso=timestamp.isoformat(),
         policy={},
-        thread_id=plan.thread_id,
-        task_id=attack.id,
-        parent_bead_id=plan_bead.bead_id,  # Link to attack plan
-        inputs={
-            "code": get_file_content(attack.target_file),
-            "file_path": attack.target_file,
-            "target_function": attack.target_function,
-            "attack_vectors": [v.__dict__ for v in attack.attack_vectors],
-            "hints": attack.hints,
-            "focus_areas": [v.category for v in attack.attack_vectors],
-        },
+        thread_id=run_id,
+        task_id=task_id,
+        inputs=analysis_inputs,
     )
+    return await agent.run(context)
+
+sem = asyncio.Semaphore(max(1, args.parallel))
+
+async def with_limit(agent: Agent, task_id: str) -> AgentOutput:
+    async with sem:
+        return await run_agent(agent, task_id)
+
+exploit_output, break_output, chaos_output = await asyncio.gather(
+    with_limit(exploit, "exploit"),
+    with_limit(breaker, "break"),
+    with_limit(chaos, "chaos"),
+)
 ```
 
 ### Parallel Execution Visualization
 
 ```
 Time -->
-        |  ATK-001 (Exploit)  |
-        |  ATK-002 (Break)    |  <- Batch 1 (parallel)
-        |  ATK-003 (Chaos)    |
-                              |  ATK-004 (Exploit)  |  <- Batch 2 (depends on ATK-001)
-                              |  ATK-005 (Break)    |
-                                                    |  ATK-006 (Arbiter)  |  <- Final
+        |  ExploitAgent  |
+        |  BreakAgent    |  <- parallel (bounded by --parallel)
+        |  ChaosAgent    |
 ```
 
 ### Collecting Findings
 
-Each agent produces findings in its output:
+The CLI normalizes outputs into a single list:
+
+```python
+combined_findings = []
+combined_findings.extend(exploit_output.result.get("findings", []))
+combined_findings.extend(break_output.result.get("findings", []))
+for experiment in chaos_output.result.get("experiments", []):
+    f = dict(experiment)
+    f["agent"] = "ChaosAgent"
+    f["finding_type"] = "chaos_experiment"
+    combined_findings.append(f)
+```
+
+Each agent still produces its own result shape:
 
 ```python
 # ExploitAgent output
@@ -353,6 +350,13 @@ Each agent produces findings in its output:
 }
 ```
 
+### Optional Cross-Examination (Debate)
+
+When running `adversarial-debate run` without `--skip-debate` (and without `--skip-verdict`), the
+pipeline runs a `CrossExaminationAgent` step that critiques/refines the merged findings. If it
+produces debated findings, they are written to `findings.debated.json` and used for the Arbiter step
+and the canonical results bundle.
+
 ---
 
 ## Stage 4: Verdict Rendering
@@ -369,48 +373,22 @@ arbiter = Arbiter(provider, bead_store)
 
 ### Consolidating Findings
 
-All findings from red team agents are collected:
+The Arbiter receives the merged findings from Stage 3. If cross-examination produced debated
+findings, those are preferred.
 
 ```python
-def consolidate_findings(outputs: list[AgentOutput]) -> list[dict]:
-    all_findings = []
-    
-    for output in outputs:
-        agent_name = output.agent_name
-        
-        # Extract findings (different structure per agent)
-        if "findings" in output.result:
-            for finding in output.result["findings"]:
-                finding["source_agent"] = agent_name
-                all_findings.append(finding)
-        
-        if "experiments" in output.result:
-            for exp in output.result["experiments"]:
-                exp["source_agent"] = agent_name
-                exp["finding_type"] = "chaos_experiment"
-                all_findings.append(exp)
-    
-    return all_findings
-```
+findings_for_verdict = debated_findings if debated_findings is not None else combined_findings
 
-### Arbiter Context
-
-```python
 arbiter_context = AgentContext(
-    run_id=plan.plan_id,
-    timestamp_iso=datetime.now(UTC).isoformat(),
+    run_id=run_id,
+    timestamp_iso=timestamp.isoformat(),
     policy={},
-    thread_id=plan.thread_id,
+    thread_id=run_id,
     task_id="verdict",
-    parent_bead_id=plan_bead.bead_id,
     inputs={
-        "findings": consolidated_findings,
-        "original_task": "Security analysis of code changes",
+        "findings": findings_for_verdict,
+        "original_task": f"CLI run on {args.target}",
         "changed_files": changed_files,
-        "codebase_context": {
-            "security_controls": [...],
-            "existing_mitigations": [...],
-        },
     },
 )
 ```
@@ -482,48 +460,22 @@ The pipeline produces various outputs for consumption.
 ```
 output/
 └── run-20240115-143022/
-    ├── attack_plan.json      # Full attack plan
-    ├── findings/
-    │   ├── exploit.json      # ExploitAgent findings
-    │   ├── break.json        # BreakAgent findings
-    │   └── chaos.json        # ChaosAgent experiments
-    ├── verdict.json          # Arbiter verdict
-    ├── report.md             # Human-readable report
-    └── summary.json          # Executive summary
+    ├── attack_plan.json          # ChaosOrchestrator output
+    ├── exploit_findings.json     # ExploitAgent output
+    ├── break_findings.json       # BreakAgent output
+    ├── chaos_findings.json       # ChaosAgent output
+    ├── findings.json             # Merged findings (pre-debate)
+    ├── findings.debated.json     # Merged findings (post-debate, optional)
+    ├── verdict.json              # Arbiter output (optional if --skip-verdict)
+    ├── bundle.json               # Canonical bundle (override with --bundle-file)
+    └── report.<ext>              # Optional formatted report (via --report-file)
 ```
 
 ### Writing Outputs
 
-```python
-def write_outputs(
-    output_dir: Path,
-    attack_plan: AttackPlan,
-    agent_outputs: list[AgentOutput],
-    verdict: ArbiterVerdict,
-) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Write attack plan
-    with open(output_dir / "attack_plan.json", "w") as f:
-        json.dump(attack_plan.__dict__, f, indent=2, default=str)
-    
-    # Write findings by agent
-    findings_dir = output_dir / "findings"
-    findings_dir.mkdir(exist_ok=True)
-    for output in agent_outputs:
-        filename = f"{output.agent_name.lower().replace('agent', '')}.json"
-        with open(findings_dir / filename, "w") as f:
-            json.dump(output.result, f, indent=2, default=str)
-    
-    # Write verdict
-    with open(output_dir / "verdict.json", "w") as f:
-        json.dump(verdict.__dict__, f, indent=2, default=str)
-    
-    # Generate and write report
-    report = verdict.generate_summary_report()
-    with open(output_dir / "report.md", "w") as f:
-        f.write(report)
-```
+The CLI writes these artifacts directly during `cmd_run`. See `src/adversarial_debate/cli.py` for the
+exact implementation and flags (`--output`, `--bundle-file`, `--report-file`, `--format`,
+`--skip-debate`, `--skip-verdict`).
 
 ### CLI Output
 
@@ -703,43 +655,63 @@ Here's a complete example of running the pipeline programmatically:
 
 ```python
 import asyncio
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
 from adversarial_debate.agents import (
+    Agent,
     AgentContext,
+    AgentOutput,
     Arbiter,
     BreakAgent,
     ChaosAgent,
     ChaosOrchestrator,
     ExploitAgent,
 )
-from adversarial_debate.providers import get_provider
+from adversarial_debate.config import Config
+from adversarial_debate.providers import ProviderConfig as RuntimeProviderConfig, get_provider
+from adversarial_debate.results import BundleInputs, build_results_bundle
 from adversarial_debate.store import BeadStore
 
 
 async def run_pipeline(target_path: str, output_dir: str) -> int:
-    # Initialize components
-    provider = get_provider("anthropic")
-    bead_store = BeadStore("beads/ledger.jsonl")
-    
+    # Load config from env (or Config.from_file(...))
+    config = Config.from_env()
+
+    # Initialize provider + bead store
+    provider = get_provider(
+        config.provider.provider,
+        RuntimeProviderConfig(
+            api_key=config.provider.api_key,
+            base_url=config.provider.base_url,
+            model=config.provider.model,
+            temperature=config.provider.temperature,
+            max_tokens=config.provider.max_tokens,
+            timeout=float(config.provider.timeout_seconds),
+            extra={"max_retries": config.provider.max_retries, **config.provider.extra},
+        ),
+    )
+    bead_store = BeadStore(config.bead_ledger_path)
+
     # Collect inputs
     target = Path(target_path)
-    files = list(target.rglob("*.py"))
+    files = [str(p) for p in target.rglob("*.py")] if target.is_dir() else [str(target)]
     changed_files = [{"path": str(f), "change_type": "modified"} for f in files]
-    patches = {str(f): f.read_text()[:2000] for f in files}
-    
-    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-    thread_id = f"pipeline-{timestamp}"
-    
-    # Stage 1: Attack Planning
+    patches = {fp: Path(fp).read_text()[:2000] for fp in files}
+
+    ts = datetime.now(UTC)
+    run_id = f"programmatic-run-{ts.strftime('%Y%m%d%H%M%S')}"
+    run_dir = Path(output_dir) / f"run-{ts.strftime('%Y%m%d%H%M%S')}"
+
+    # Stage 1: Attack planning
     orchestrator = ChaosOrchestrator(provider, bead_store)
     plan_context = AgentContext(
-        run_id=f"run-{timestamp}",
-        timestamp_iso=datetime.now(UTC).isoformat(),
+        run_id=run_id,
+        timestamp_iso=ts.isoformat(),
         policy={},
-        thread_id=thread_id,
-        task_id="orchestrate",
+        thread_id=run_id,
+        task_id="plan",
         inputs={
             "changed_files": changed_files,
             "patches": patches,
@@ -747,61 +719,93 @@ async def run_pipeline(target_path: str, output_dir: str) -> int:
         },
     )
     plan_output = await orchestrator.run(plan_context)
-    attack_plan = plan_output.result["attack_plan"]
-    
-    # Stage 2: Parallel Analysis
-    agents = {
-        "EXPLOIT_AGENT": ExploitAgent(provider, bead_store),
-        "BREAK_AGENT": BreakAgent(provider, bead_store),
-        "CHAOS_AGENT": ChaosAgent(provider, bead_store),
-    }
-    
-    async def run_attack(attack: dict) -> dict:
-        agent = agents[attack["agent"]]
+
+    # Stage 2: Run the three core agents in parallel (current CLI behavior)
+    exploit = ExploitAgent(provider, bead_store)
+    breaker = BreakAgent(provider, bead_store)
+    chaos = ChaosAgent(provider, bead_store)
+
+    code_parts = []
+    for fp in files:
+        code_parts.append(f"# File: {fp}\n{Path(fp).read_text()}\n")
+    code = "\n".join(code_parts)
+
+    analysis_inputs = {"code": code, "file_path": target_path, "file_paths": files}
+
+    async def run_agent(agent: Agent, task_id: str) -> AgentOutput:
         context = AgentContext(
-            run_id=f"run-{timestamp}",
-            timestamp_iso=datetime.now(UTC).isoformat(),
+            run_id=run_id,
+            timestamp_iso=ts.isoformat(),
             policy={},
-            thread_id=thread_id,
-            task_id=attack["id"],
-            inputs={
-                "code": Path(attack["target_file"]).read_text(),
-                "file_path": attack["target_file"],
-                "attack_vectors": attack.get("attack_vectors", []),
-            },
+            thread_id=run_id,
+            task_id=task_id,
+            inputs=analysis_inputs,
         )
         return await agent.run(context)
-    
-    tasks = [run_attack(a) for a in attack_plan["attacks"]]
-    agent_outputs = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # Stage 3: Verdict
-    findings = []
-    for output in agent_outputs:
-        if not isinstance(output, Exception):
-            findings.extend(output.result.get("findings", []))
-    
+
+    exploit_output, break_output, chaos_output = await asyncio.gather(
+        run_agent(exploit, "exploit"),
+        run_agent(breaker, "break"),
+        run_agent(chaos, "chaos"),
+    )
+
+    combined_findings = []
+    combined_findings.extend(exploit_output.result.get("findings", []))
+    combined_findings.extend(break_output.result.get("findings", []))
+    for exp in chaos_output.result.get("experiments", []):
+        f = dict(exp)
+        f["agent"] = "ChaosAgent"
+        f["finding_type"] = "chaos_experiment"
+        combined_findings.append(f)
+
+    # Stage 3: Verdict (Arbiter)
     arbiter = Arbiter(provider, bead_store)
     verdict_context = AgentContext(
-        run_id=f"run-{timestamp}",
-        timestamp_iso=datetime.now(UTC).isoformat(),
+        run_id=run_id,
+        timestamp_iso=ts.isoformat(),
         policy={},
-        thread_id=thread_id,
+        thread_id=run_id,
         task_id="verdict",
-        inputs={"findings": findings},
+        inputs={
+            "findings": combined_findings,
+            "original_task": f"Programmatic run on {target_path}",
+            "changed_files": changed_files,
+        },
     )
     verdict_output = await arbiter.run(verdict_context)
-    
-    # Stage 4: Output
-    out_path = Path(output_dir) / f"run-{timestamp}"
-    out_path.mkdir(parents=True, exist_ok=True)
-    
-    # Write results...
-    
-    # Return exit code based on verdict
-    if verdict_output.result.get("decision") == "BLOCK":
-        return 2
-    return 0
+
+    # Stage 4: Write artifacts + canonical bundle
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    (run_dir / "attack_plan.json").write_text(json.dumps(plan_output.result, indent=2, default=str))
+    (run_dir / "exploit_findings.json").write_text(
+        json.dumps(exploit_output.result, indent=2, default=str)
+    )
+    (run_dir / "break_findings.json").write_text(json.dumps(break_output.result, indent=2, default=str))
+    (run_dir / "chaos_findings.json").write_text(json.dumps(chaos_output.result, indent=2, default=str))
+    (run_dir / "findings.json").write_text(json.dumps(combined_findings, indent=2, default=str))
+    (run_dir / "verdict.json").write_text(json.dumps(verdict_output.result, indent=2, default=str))
+
+    bundle = build_results_bundle(
+        inputs=BundleInputs(
+            run_id=run_id,
+            target=target_path,
+            provider=config.provider.provider,
+            started_at_iso=ts.isoformat(),
+            finished_at_iso=datetime.now(UTC).isoformat(),
+            files_analyzed=files,
+            time_budget_seconds=600,
+            config_path=None,
+        ),
+        exploit_result=exploit_output.result,
+        break_result=break_output.result,
+        chaos_result=chaos_output.result,
+        arbiter_result=verdict_output.result,
+    )
+    (run_dir / "bundle.json").write_text(json.dumps(bundle, indent=2, default=str))
+
+    should_block = bool((verdict_output.result.get("summary") or {}).get("should_block"))
+    return 2 if should_block else 0
 
 
 if __name__ == "__main__":

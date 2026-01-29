@@ -19,7 +19,7 @@ Thank you for your interest in contributing to adversarial-debate! This document
 
 2. Install dependencies:
    ```bash
-   uv sync --dev
+   uv sync --extra dev
    ```
 
 3. Verify your setup:
@@ -49,16 +49,16 @@ We use several tools to maintain code quality:
 
 ```bash
 # Linting
-uv run ruff check src/
+uv run ruff check src tests
 
 # Auto-fix linting issues
-uv run ruff check src/ --fix
+uv run ruff check src tests --fix
 
 # Formatting
-uv run ruff format src/
+uv run ruff format src tests
 
 # Type checking
-uv run mypy src/adversarial_debate --ignore-missing-imports
+uv run mypy src
 ```
 
 ### Pre-commit Checks
@@ -66,9 +66,9 @@ uv run mypy src/adversarial_debate --ignore-missing-imports
 Before committing, ensure:
 
 1. All tests pass: `uv run pytest tests/`
-2. Linting passes: `uv run ruff check src/`
-3. Formatting is correct: `uv run ruff format --check src/`
-4. Types check: `uv run mypy src/adversarial_debate --ignore-missing-imports`
+2. Linting passes: `uv run ruff check src tests`
+3. Formatting is correct: `uv run ruff format --check src tests`
+4. Types check: `uv run mypy src`
 
 ## Code Style
 

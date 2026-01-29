@@ -5,9 +5,9 @@ analysis automatically when files are modified.
 """
 
 import asyncio
-import os
+import contextlib
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 @dataclass
 class WatchEvent:
     """A file system change event."""
+
     path: Path
     event_type: str  # "created", "modified", "deleted"
     timestamp: float = field(default_factory=time.time)
@@ -28,19 +29,22 @@ class WatchEvent:
 @dataclass
 class WatchConfig:
     """Configuration for file watching."""
+
     patterns: list[str] = field(default_factory=lambda: ["*.py"])
-    ignore_patterns: list[str] = field(default_factory=lambda: [
-        "__pycache__/*",
-        "*.pyc",
-        ".git/*",
-        ".adversarial-cache/*",
-        "*.egg-info/*",
-        ".tox/*",
-        ".pytest_cache/*",
-        "node_modules/*",
-        "venv/*",
-        ".venv/*",
-    ])
+    ignore_patterns: list[str] = field(
+        default_factory=lambda: [
+            "__pycache__/*",
+            "*.pyc",
+            ".git/*",
+            ".adversarial-cache/*",
+            "*.egg-info/*",
+            ".tox/*",
+            ".pytest_cache/*",
+            "node_modules/*",
+            "venv/*",
+            ".venv/*",
+        ]
+    )
     debounce_seconds: float = 0.5
     recursive: bool = True
 
@@ -54,7 +58,7 @@ class FileWatcher:
 
     def __init__(
         self,
-        paths: list[Path | str],
+        paths: Sequence[Path | str],
         config: WatchConfig | None = None,
         on_change: Callable[[list[WatchEvent]], Any] | None = None,
     ):
@@ -99,18 +103,14 @@ class FileWatcher:
         for watch_path in self.paths:
             if watch_path.is_file():
                 if self._should_watch(watch_path):
-                    try:
+                    with contextlib.suppress(OSError):
                         files[watch_path] = watch_path.stat().st_mtime
-                    except OSError:
-                        pass
             elif watch_path.is_dir():
                 glob_pattern = "**/*" if self.config.recursive else "*"
                 for file_path in watch_path.glob(glob_pattern):
                     if file_path.is_file() and self._should_watch(file_path):
-                        try:
+                        with contextlib.suppress(OSError):
                             files[file_path] = file_path.stat().st_mtime
-                        except OSError:
-                            pass
 
         return files
 
@@ -159,20 +159,23 @@ class FileWatcher:
 
                     # Debounce: wait for events to settle
                     now = time.time()
-                    if now - self._last_callback >= self.config.debounce_seconds:
-                        if self._pending_events and self.on_change:
-                            # Group and deduplicate events
-                            unique_events = self._deduplicate_events(self._pending_events)
-                            self._pending_events = []
-                            self._last_callback = now
+                    if (
+                        now - self._last_callback >= self.config.debounce_seconds
+                        and self._pending_events
+                        and self.on_change
+                    ):
+                        # Group and deduplicate events
+                        unique_events = self._deduplicate_events(self._pending_events)
+                        self._pending_events = []
+                        self._last_callback = now
 
-                            logger.info(f"Detected {len(unique_events)} change(s)")
-                            try:
-                                result = self.on_change(unique_events)
-                                if asyncio.iscoroutine(result):
-                                    await result
-                            except Exception as e:
-                                logger.error(f"Error in change callback: {e}")
+                        logger.info(f"Detected {len(unique_events)} change(s)")
+                        try:
+                            result = self.on_change(unique_events)
+                            if asyncio.iscoroutine(result):
+                                await result
+                        except Exception as e:
+                            logger.error(f"Error in change callback: {e}")
 
                 await asyncio.sleep(poll_interval)
 
@@ -224,15 +227,12 @@ class WatchRunner:
         # Cancel any running analysis
         if self._analysis_task and not self._analysis_task.done():
             self._analysis_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._analysis_task
-            except asyncio.CancelledError:
-                pass
 
         # Get changed file paths
         changed_paths = [
-            event.path for event in events
-            if event.event_type in ("created", "modified")
+            event.path for event in events if event.event_type in ("created", "modified")
         ]
 
         if not changed_paths:

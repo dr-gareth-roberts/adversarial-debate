@@ -364,6 +364,9 @@ class LLMProvider(ABC):
 | Provider | Use Case | Configuration |
 |----------|----------|---------------|
 | **AnthropicProvider** | Production use | Requires `ANTHROPIC_API_KEY` |
+| **OpenAIProvider** | Production use (OpenAI API) | Requires `OPENAI_API_KEY` |
+| **AzureOpenAIProvider** | Enterprise use (Azure OpenAI) | Requires `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT` (optionally `AZURE_OPENAI_DEPLOYMENT`) |
+| **OllamaProvider** | Local inference | Requires `OLLAMA_BASE_URL` (default: `http://localhost:11434`) |
 | **MockProvider** | Testing/demos | No API key needed, deterministic output |
 
 ### Message Format
@@ -385,9 +388,24 @@ Agents construct prompts by building a list of messages, typically starting with
 
 The framework optimizes execution time by running independent analyses in parallel.
 
-### Parallel Groups
+### Agent-Level Parallelism (Current CLI)
 
-The ChaosOrchestrator creates `ParallelGroup` objects that identify attacks that can run concurrently:
+The `adversarial-debate run` command runs the three core agents concurrently:
+
+- `ExploitAgent` (OWASP/security)
+- `BreakAgent` (logic/edge cases)
+- `ChaosAgent` (resilience experiments)
+
+Concurrency is bounded by `--parallel` (default: `3`) via an `asyncio.Semaphore`, and the agents are
+executed with `asyncio.gather(...)`.
+
+### AttackPlan Parallel Metadata (Informational)
+
+The `ChaosOrchestrator` still emits parallelization metadata in its `AttackPlan` output to explain
+which attacks *could* be run concurrently. Today, this metadata is primarily used for planning and
+triage; the CLI does not currently execute each `Attack` as a separate scheduled task.
+
+The key structures are:
 
 ```python
 @dataclass
@@ -398,23 +416,7 @@ class ParallelGroup:
     resource_requirements: dict        # CPU, memory needs
 ```
 
-### Execution Batching
-
-The `get_execution_batches` method on ChaosOrchestrator returns attacks grouped for parallel execution:
-
-```
-Batch 1: [ATK-001, ATK-002, ATK-003]  <- Run in parallel
-    |
-    v (wait for completion)
-Batch 2: [ATK-004, ATK-005]           <- Depends on Batch 1
-    |
-    v (wait for completion)
-Batch 3: [ATK-006]                    <- Depends on Batch 2
-```
-
-### Dependency Resolution
-
-Attacks can declare dependencies on other attacks:
+Attacks can also declare dependency hints:
 
 ```python
 @dataclass
@@ -424,7 +426,8 @@ class Attack:
     can_parallel_with: list[str] # Safe to run alongside these
 ```
 
-The framework uses these declarations to build an optimal execution schedule that maximizes parallelism while respecting dependencies.
+The `ChaosOrchestrator.get_execution_batches(plan)` helper can compute batches from these fields if
+you build a custom runner.
 
 ---
 
@@ -444,6 +447,24 @@ The `SandboxExecutor` provides isolated code execution for testing exploit paylo
 | Filesystem | Read-only root | Temp directory |
 | Capabilities | Dropped | N/A |
 | User | Unprivileged | Current user |
+
+#### Running in Containers (Docker-in-Docker vs Docker-outside-of-Docker)
+
+The Docker backend shells out to the local Docker CLI (`docker run`). This works well when
+`adversarial-debate` runs on a host/CI runner with Docker installed.
+
+If you run `adversarial-debate` itself **inside a container**, the Docker backend is only usable if
+you *intentionally* provide Docker access (e.g., install the Docker CLI and mount
+`/var/run/docker.sock`, or configure `DOCKER_HOST`). This is effectively **Docker-outside-of-Docker**
+and it weakens isolation: a container with access to the host Docker daemon can typically control
+the host.
+
+Recommended defaults:
+
+- For **hardened sandboxing**, run `adversarial-debate` on the host (or a trusted CI runner) and let
+  it create sandbox containers there.
+- For **containerized runs**, prefer the subprocess backend and treat it as best-effort isolation:
+  set `SandboxConfig(use_docker=False, use_subprocess=True)`.
 
 ### Input Validation
 

@@ -15,7 +15,9 @@ from ..providers import Message, ModelTier
 from ..store import BeadType
 from .base import Agent, AgentContext, AgentOutput
 
-BREAK_AGENT_SYSTEM_PROMPT = """You are a senior QA engineer and chaos engineer with expertise in finding edge cases and failure modes.
+BREAK_AGENT_SYSTEM_PROMPT = """\
+You are a senior QA engineer and chaos engineer with expertise in finding
+edge cases and failure modes.
 
 Your job is to BREAK code. Not review it. Not improve it. BREAK it.
 
@@ -65,9 +67,9 @@ You MUST respond with valid JSON in this exact format:
     {
       "id": "BREAK-001",
       "title": "Short description of the vulnerability",
-      "severity": "CRITICAL|HIGH|MEDIUM|LOW",
-      "category": "boundary|concurrency|state|resource|type_confusion",
-      "confidence": 0.0-1.0,
+      "severity": "MEDIUM",
+      "category": "boundary",
+      "confidence": 0.8,
       "description": "Detailed description of the issue",
       "attack_vector": "How to trigger this vulnerability",
       "proof_of_concept": {
@@ -91,17 +93,23 @@ You MUST respond with valid JSON in this exact format:
   "code_quality_observations": [
     "General observations about code quality that might hint at other issues"
   ],
-  "confidence": 0.0-1.0,
+  "confidence": 0.8,
   "assumptions": ["assumptions made"],
   "unknowns": ["things that couldn't be determined"]
 }
+
+Field constraints:
+- severity: one of CRITICAL|HIGH|MEDIUM|LOW
+- category: one of boundary|concurrency|state|resource|type_confusion
+- confidence: float 0.0-1.0
 
 ## Rules
 
 1. Be specific and concrete - no theoretical issues without concrete PoC
 2. Provide actual code that reproduces the issue
 3. Focus on issues that cause incorrect behavior, crashes, or security problems
-4. Do NOT report style issues, missing features, or performance concerns (unless they cause failures)
+4. Do NOT report style issues, missing features, or performance concerns (unless they cause
+   failures)
 5. Severity guide:
    - CRITICAL: Data loss, security breach, complete system failure
    - HIGH: Significant incorrect behavior, partial data corruption
@@ -166,14 +174,16 @@ class BreakAgent(Agent):
         if function_name:
             user_message_parts.append(f"**Function/Class:** `{function_name}`")
 
-        user_message_parts.extend([
-            f"**Language:** {language}",
-            "",
-            f"```{language}",
-            target_code,
-            "```",
-            "",
-        ])
+        user_message_parts.extend(
+            [
+                f"**Language:** {language}",
+                "",
+                f"```{language}",
+                target_code,
+                "```",
+                "",
+            ]
+        )
 
         # Add code context if available
         if dependencies or is_async or has_state or handles_input:
@@ -206,30 +216,32 @@ class BreakAgent(Agent):
             user_message_parts.append("")
 
         # Final instructions
-        user_message_parts.extend([
-            "## Your Mission",
-            "",
-            "Analyze this code and find ways to break it. For each vulnerability:",
-            "1. Describe the attack vector",
-            "2. Provide a concrete proof-of-concept (actual code)",
-            "3. Explain the impact",
-            "4. Suggest a fix",
-            "",
-            "Focus on issues that cause:",
-            "- Crashes or exceptions",
-            "- Incorrect behavior or wrong results",
-            "- Data corruption or loss",
-            "- Resource leaks",
-            "- Security vulnerabilities",
-            "",
-            "Do NOT report:",
-            "- Style issues or code smells (unless they cause bugs)",
-            "- Performance concerns (unless they cause failures)",
-            "- Missing features",
-            "- Theoretical issues without concrete PoC",
-            "",
-            "Respond with valid JSON matching the schema in your instructions.",
-        ])
+        user_message_parts.extend(
+            [
+                "## Your Mission",
+                "",
+                "Analyze this code and find ways to break it. For each vulnerability:",
+                "1. Describe the attack vector",
+                "2. Provide a concrete proof-of-concept (actual code)",
+                "3. Explain the impact",
+                "4. Suggest a fix",
+                "",
+                "Focus on issues that cause:",
+                "- Crashes or exceptions",
+                "- Incorrect behavior or wrong results",
+                "- Data corruption or loss",
+                "- Resource leaks",
+                "- Security vulnerabilities",
+                "",
+                "Do NOT report:",
+                "- Style issues or code smells (unless they cause bugs)",
+                "- Performance concerns (unless they cause failures)",
+                "- Missing features",
+                "- Theoretical issues without concrete PoC",
+                "",
+                "Respond with valid JSON matching the schema in your instructions.",
+            ]
+        )
 
         return [
             Message(role="system", content=BREAK_AGENT_SYSTEM_PROMPT),

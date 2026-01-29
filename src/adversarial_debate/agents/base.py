@@ -5,7 +5,7 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ..providers import LLMProvider, Message, ModelTier
 from ..store import Bead, BeadStore, BeadType
@@ -17,6 +17,7 @@ class AgentContext:
 
     Contains all the information an agent needs to do its work.
     """
+
     # Run metadata
     run_id: str
     timestamp_iso: str
@@ -57,6 +58,7 @@ class AgentOutput:
 
     All agents produce structured output that includes beads.
     """
+
     # Agent identification
     agent_name: str
 
@@ -202,10 +204,12 @@ class Agent(ABC):
         bead_artefacts = []
         if artefacts:
             for a in artefacts:
-                bead_artefacts.append(Artefact(
-                    type=ArtefactType(a["type"]),
-                    ref=a["ref"],
-                ))
+                bead_artefacts.append(
+                    Artefact(
+                        type=ArtefactType(a["type"]),
+                        ref=a["ref"],
+                    )
+                )
 
         return Bead(
             bead_id=BeadStore.generate_bead_id(),
@@ -236,29 +240,36 @@ class Agent(ABC):
 
         # Strategy 1: Try to extract JSON from markdown code blocks
         if "```" in content:
-            code_block_match = re.search(
-                r'```(?:json)?\s*\n(.*?)\n```', content, re.DOTALL
-            )
+            code_block_match = re.search(r"```(?:json)?\s*\n(.*?)\n```", content, re.DOTALL)
             if code_block_match:
                 content = code_block_match.group(1).strip()
 
         # Strategy 2: Find first { and last } to extract JSON object
-        first_brace = content.find('{')
-        last_brace = content.rfind('}')
+        first_brace = content.find("{")
+        last_brace = content.rfind("}")
 
         if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-            content = content[first_brace:last_brace + 1]
+            content = content[first_brace : last_brace + 1]
 
         try:
-            return json.loads(content)
-        except json.JSONDecodeError as e:
+            parsed: Any = json.loads(content)
+        except json.JSONDecodeError:
             # Try removing trailing commas
+            cleaned = re.sub(r",(\s*[}\]])", r"\1", content)
             try:
-                cleaned = re.sub(r',(\s*[}\]])', r'\1', content)
-                return json.loads(cleaned)
-            except json.JSONDecodeError:
+                parsed = json.loads(cleaned)
+            except json.JSONDecodeError as err2:
                 raise json.JSONDecodeError(
-                    f"Failed to parse JSON: {e}. Content: {content[:200]}...",
-                    e.doc,
-                    e.pos
-                )
+                    f"Failed to parse JSON: {err2}. Content: {content[:200]}...",
+                    err2.doc,
+                    err2.pos,
+                ) from err2
+
+        if not isinstance(parsed, dict):
+            raise json.JSONDecodeError(
+                f"Expected JSON object, got {type(parsed).__name__}",
+                content,
+                0,
+            )
+
+        return cast(dict[str, Any], parsed)

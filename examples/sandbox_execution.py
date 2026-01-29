@@ -1,34 +1,33 @@
 #!/usr/bin/env python3
-"""Sandbox execution example: Run untrusted code safely.
+"""Sandbox execution examples: run untrusted code safely.
 
 This example demonstrates how to use the hardened sandbox to:
 1. Execute untrusted Python code safely
-2. Test for specific vulnerabilities
-3. Capture output and errors
+2. Provide structured inputs
+3. Enforce timeouts (and, with Docker, resource limits and network isolation)
+4. Capture output and errors
 """
 
-from adversarial_debate.sandbox import (
-    SandboxConfig,
-    SandboxExecutor,
-    SandboxResult,
-)
+from __future__ import annotations
+
+import asyncio
+
+from adversarial_debate.sandbox import SandboxConfig, SandboxExecutor
 
 
-def basic_execution() -> None:
-    """Basic sandbox execution example."""
+async def basic_execution() -> None:
+    """Basic sandbox execution example (subprocess backend)."""
     print("=" * 60)
-    print("Example 1: Basic Execution")
+    print("Example 1: Basic Execution (subprocess backend)")
     print("=" * 60)
 
     config = SandboxConfig(
         timeout_seconds=10,
-        max_memory_mb=128,
+        memory_limit="128m",
         use_docker=False,  # Use subprocess for simplicity
     )
-
     executor = SandboxExecutor(config)
 
-    # Safe code
     code = """
 x = 5
 y = 10
@@ -36,21 +35,21 @@ result = x + y
 print(f"Result: {result}")
 """
 
-    result = executor.execute_python(code, inputs={})
+    result = await executor.execute_python(code, inputs={})
     print(f"Exit code: {result.exit_code}")
-    print(f"Output: {result.stdout}")
-    print(f"Errors: {result.stderr}")
+    print(f"Output: {result.output}")
+    if result.error:
+        print(f"Errors: {result.error}")
     print()
 
 
-def execution_with_inputs() -> None:
+async def execution_with_inputs() -> None:
     """Execute code with input values."""
     print("=" * 60)
     print("Example 2: Execution with Inputs")
     print("=" * 60)
 
-    config = SandboxConfig(timeout_seconds=10)
-    executor = SandboxExecutor(config)
+    executor = SandboxExecutor(SandboxConfig(timeout_seconds=10, use_docker=False))
 
     code = """
 # Inputs are available as variables
@@ -59,7 +58,7 @@ print(f"Numbers: {numbers}")
 print(f"Sum: {sum(numbers)}")
 """
 
-    result = executor.execute_python(
+    result = await executor.execute_python(
         code,
         inputs={
             "name": "Alice",
@@ -67,20 +66,20 @@ print(f"Sum: {sum(numbers)}")
         },
     )
 
-    print(f"Output: {result.stdout}")
+    print(f"Output: {result.output}")
+    if result.error:
+        print(f"Errors: {result.error}")
     print()
 
 
-def timeout_handling() -> None:
+async def timeout_handling() -> None:
     """Demonstrate timeout handling."""
     print("=" * 60)
     print("Example 3: Timeout Handling")
     print("=" * 60)
 
-    config = SandboxConfig(timeout_seconds=2)
-    executor = SandboxExecutor(config)
+    executor = SandboxExecutor(SandboxConfig(timeout_seconds=2, use_docker=False))
 
-    # Code that runs too long
     code = """
 import time
 print("Starting...")
@@ -88,141 +87,147 @@ time.sleep(10)  # This will be killed
 print("Done!")  # This won't be reached
 """
 
-    result = executor.execute_python(code, inputs={})
+    result = await executor.execute_python(code, inputs={})
     print(f"Exit code: {result.exit_code}")
     print(f"Timed out: {result.timed_out}")
-    print(f"Output: {result.stdout}")
+    print(f"Output: {result.output}")
+    if result.error:
+        print(f"Errors: {result.error}")
     print()
 
 
-def memory_limit_handling() -> None:
-    """Demonstrate memory limit handling."""
+async def sql_injection_test() -> None:
+    """Test code for SQL injection vulnerability using the built-in helper."""
     print("=" * 60)
-    print("Example 4: Memory Limit Handling")
+    print("Example 4: SQL Injection Testing")
     print("=" * 60)
 
-    config = SandboxConfig(
-        timeout_seconds=10,
-        max_memory_mb=50,
-    )
-    executor = SandboxExecutor(config)
+    executor = SandboxExecutor(SandboxConfig(timeout_seconds=10, use_docker=False))
 
-    # Code that tries to allocate too much memory
-    code = """
-# Try to allocate a large list
-data = [0] * (100 * 1024 * 1024)  # 100M integers
-print(f"Allocated: {len(data)} items")
+    target_code = """
+def get_users(user_id: str):
+    # VULNERABLE: f-string query construction using attacker-controlled input.
+    query = f"SELECT id, name, password FROM users WHERE id = {user_id}"
+    return cursor.execute(query).fetchall()
 """
 
-    result = executor.execute_python(code, inputs={})
-    print(f"Exit code: {result.exit_code}")
-    print(f"Output: {result.stdout}")
-    print(f"Errors: {result.stderr[:200] if result.stderr else 'None'}")
+    result = await executor.test_sql_injection(
+        target_code,
+        function_name="get_users",
+        param_name="user_id",
+    )
+    print("Output:")
+    print(result.output)
+    if result.error:
+        print("Errors:")
+        print(result.error)
     print()
 
 
-def sql_injection_test() -> None:
-    """Test code for SQL injection vulnerability."""
-    print("=" * 60)
-    print("Example 5: SQL Injection Testing")
-    print("=" * 60)
-
-    config = SandboxConfig(timeout_seconds=10)
-    executor = SandboxExecutor(config)
-
-    # Vulnerable code to test
-    vulnerable_code = '''
-def build_query(user_input):
-    """Build SQL query - VULNERABLE."""
-    return f"SELECT * FROM users WHERE id = '{user_input}'"
-
-# Test with normal input
-print("Normal input:", build_query("123"))
-
-# Test with malicious input
-print("Injection:", build_query("' OR '1'='1"))
-'''
-
-    result = executor.execute_python(vulnerable_code, inputs={})
-    print(f"Output:\n{result.stdout}")
-
-    # The output shows the injection worked
-    if "OR '1'='1" in result.stdout:
-        print("VULNERABILITY CONFIRMED: SQL injection possible")
-    print()
-
-
-def error_handling() -> None:
+async def error_handling() -> None:
     """Demonstrate error handling."""
     print("=" * 60)
-    print("Example 6: Error Handling")
+    print("Example 5: Error Handling")
     print("=" * 60)
 
-    config = SandboxConfig(timeout_seconds=10)
-    executor = SandboxExecutor(config)
+    executor = SandboxExecutor(SandboxConfig(timeout_seconds=10, use_docker=False))
 
-    # Code with an error
-    code = """
-x = 1 / 0  # ZeroDivisionError
-"""
+    code = "x = 1 / 0  # ZeroDivisionError\n"
+    result = await executor.execute_python(code, inputs={})
 
-    result = executor.execute_python(code, inputs={})
     print(f"Exit code: {result.exit_code}")
-    print(f"Error output:\n{result.stderr}")
+    print(f"Output: {result.output}")
+    if result.error:
+        print("Error output:")
+        print(result.error)
     print()
 
 
-def network_disabled() -> None:
-    """Demonstrate network access is disabled."""
+async def network_isolation() -> None:
+    """Demonstrate that outbound network access is disabled (Docker backend)."""
     print("=" * 60)
-    print("Example 7: Network Disabled")
+    print("Example 6: Network Isolation (Docker backend)")
     print("=" * 60)
 
     config = SandboxConfig(
         timeout_seconds=10,
-        use_docker=True,  # Docker required for network isolation
-        network_disabled=True,
+        use_docker=True,
+        network_enabled=False,  # default; explicit for clarity
     )
+    executor = SandboxExecutor(config)
 
-    try:
-        executor = SandboxExecutor(config)
+    if not executor.is_docker_available():
+        print("Docker not available; skipping network isolation example.")
+        print()
+        return
 
-        code = """
+    code = """
 import urllib.request
 try:
-    response = urllib.request.urlopen('https://example.com', timeout=5)
+    response = urllib.request.urlopen("https://example.com", timeout=5)
     print(f"Status: {response.status}")
 except Exception as e:
     print(f"Network blocked: {type(e).__name__}: {e}")
 """
 
-        result = executor.execute_python(code, inputs={})
-        print(f"Output: {result.stdout}")
-    except RuntimeError as e:
-        print(f"Docker not available: {e}")
-        print("Network isolation requires Docker.")
+    result = await executor.execute_python(code, inputs={})
+    print(f"Output: {result.output}")
+    if result.error:
+        print(f"Errors: {result.error}")
     print()
 
 
-def main() -> None:
+async def memory_limit_handling() -> None:
+    """Demonstrate memory limit behavior (Docker backend)."""
+    print("=" * 60)
+    print("Example 7: Memory Limit Handling (Docker backend)")
+    print("=" * 60)
+
+    config = SandboxConfig(
+        timeout_seconds=10,
+        use_docker=True,
+        memory_limit="64m",
+    )
+    executor = SandboxExecutor(config)
+
+    if not executor.is_docker_available():
+        print("Docker not available; skipping memory limit example.")
+        print()
+        return
+
+    code = """
+try:
+    # Attempt to allocate more than the configured memory limit.
+    data = bytearray(128 * 1024 * 1024)  # 128 MiB
+    print(f"Allocated: {len(data)} bytes")
+except Exception as e:
+    print(f"Allocation failed: {type(e).__name__}: {e}")
+"""
+
+    result = await executor.execute_python(code, inputs={})
+    print(f"Exit code: {result.exit_code}")
+    print(f"Output: {result.output}")
+    if result.error:
+        print("Errors:")
+        print(result.error)
+    print()
+
+
+async def main() -> None:
     """Run all examples."""
     print()
     print("Adversarial Debate - Sandbox Execution Examples")
     print("=" * 60)
     print()
 
-    basic_execution()
-    execution_with_inputs()
-    timeout_handling()
-    memory_limit_handling()
-    sql_injection_test()
-    error_handling()
-
-    # This requires Docker
-    # network_disabled()
-
-    print("All examples completed!")
+    await basic_execution()
+    await execution_with_inputs()
+    await timeout_handling()
+    await sql_injection_test()
+    await error_handling()
+    await network_isolation()
+    await memory_limit_handling()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -29,7 +29,9 @@ from .base import Agent, AgentContext, AgentOutput
 
 ARBITER_SYSTEM_PROMPT = """You are the Arbiter - the final judge of security and quality findings.
 
-Your role is to review findings from red team agents and make fair, rigorous decisions about what should block a merge, what should be tracked as warnings, and what can be dismissed as false positives.
+Your role is to review findings from red team agents and make fair, rigorous decisions about what
+should block a merge, what should be tracked as warnings, and what can be dismissed as false
+positives.
 
 ## Your Judgment Criteria
 
@@ -84,7 +86,7 @@ Adjust severity based on context:
 You MUST respond with valid JSON in this exact format:
 
 {
-  "decision": "BLOCK|WARN|PASS",
+  "decision": "BLOCK",
   "decision_rationale": "Clear explanation of why this decision was made",
   "blocking_issues": [
     {
@@ -92,28 +94,24 @@ You MUST respond with valid JSON in this exact format:
       "original_agent": "ExploitAgent",
       "original_title": "SQL Injection in user lookup",
       "original_severity": "CRITICAL",
-      "validation_status": "CONFIRMED|LIKELY|UNCERTAIN",
-      "validated_severity": "CRITICAL|HIGH|MEDIUM|LOW",
+      "validation_status": "CONFIRMED",
+      "validated_severity": "CRITICAL",
       "adjusted_severity_reason": "Why severity was changed (if it was)",
-      "exploitation_difficulty": "TRIVIAL|EASY|MODERATE|DIFFICULT|THEORETICAL",
+      "exploitation_difficulty": "EASY",
       "exploitation_prerequisites": ["Requires authenticated session", "Needs admin role"],
-      "real_world_exploitability": 0.0-1.0,
+      "real_world_exploitability": 0.7,
       "impact_description": "What actually happens if exploited",
       "affected_components": ["user_service", "database"],
       "data_at_risk": ["user_emails", "hashed_passwords"],
-      "remediation_effort": "MINUTES|HOURS|DAYS|WEEKS",
+      "remediation_effort": "HOURS",
       "suggested_fix": "Use parameterized queries",
       "fix_code_example": "cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))",
       "workaround": "Temporary mitigation if fix takes time",
-      "confidence": 0.0-1.0
+      "confidence": 0.8
     }
   ],
-  "warnings": [
-    // Same structure as blocking_issues
-  ],
-  "passed_findings": [
-    // Same structure, for findings that are real but don't need action
-  ],
+  "warnings": [],
+  "passed_findings": [],
   "false_positives": [
     {
       "original_id": "BREAK-003",
@@ -121,7 +119,7 @@ You MUST respond with valid JSON in this exact format:
       "original_title": "Integer overflow in counter",
       "original_severity": "MEDIUM",
       "rejection_reason": "Counter is reset daily, cannot reach overflow value",
-      "rejection_category": "not_exploitable|false_positive|out_of_scope|duplicate",
+      "rejection_category": "false_positive",
       "evidence": "Counter max value is 1M, daily traffic is 10K"
     }
   ],
@@ -130,8 +128,8 @@ You MUST respond with valid JSON in this exact format:
       "finding_id": "EXPLOIT-001",
       "title": "Fix SQL injection in user lookup",
       "description": "Replace string concatenation with parameterized query",
-      "priority": "CRITICAL|HIGH|MEDIUM|LOW",
-      "estimated_effort": "MINUTES|HOURS|DAYS|WEEKS",
+      "priority": "CRITICAL",
+      "estimated_effort": "HOURS",
       "fix_guidance": "Step by step guidance",
       "acceptance_criteria": ["Query uses parameters", "No string interpolation"]
     }
@@ -139,10 +137,22 @@ You MUST respond with valid JSON in this exact format:
   "summary": "Human-readable summary of the verdict",
   "key_concerns": ["Main things to be aware of"],
   "recommendations": ["Actions to take beyond immediate fixes"],
-  "confidence": 0.0-1.0,
+  "confidence": 0.8,
   "assumptions": ["Assumptions made in this judgment"],
   "limitations": ["Things that couldn't be fully assessed"]
 }
+
+Field constraints:
+- decision: one of BLOCK|WARN|PASS
+- blocking_issues[].validation_status: one of CONFIRMED|LIKELY|UNCERTAIN
+- blocking_issues[].validated_severity: one of CRITICAL|HIGH|MEDIUM|LOW
+- blocking_issues[].exploitation_difficulty: one of TRIVIAL|EASY|MODERATE|DIFFICULT|THEORETICAL
+- blocking_issues[].remediation_effort, remediation_tasks[].estimated_effort:
+  one of MINUTES|HOURS|DAYS|WEEKS
+- false_positives[].rejection_category: one of not_exploitable|false_positive|out_of_scope|duplicate
+- remediation_tasks[].priority: one of CRITICAL|HIGH|MEDIUM|LOW
+- real_world_exploitability, confidence: float 0.0-1.0
+- warnings, passed_findings entries (if any) use the same object schema as blocking_issues
 
 ## Rules
 
@@ -224,13 +234,15 @@ class Arbiter(Agent):
             user_parts.append("")
 
         # Blue team context
-        user_parts.extend([
-            "## Blue Team Context",
-            "",
-            f"**Original Task:** {original_task}",
-            "",
-            "**Files Changed:**",
-        ])
+        user_parts.extend(
+            [
+                "## Blue Team Context",
+                "",
+                f"**Original Task:** {original_task}",
+                "",
+                "**Files Changed:**",
+            ]
+        )
         for f in changed_files[:20]:
             if isinstance(f, dict):
                 user_parts.append(f"- `{f.get('path', f)}`")
@@ -241,12 +253,14 @@ class Arbiter(Agent):
         user_parts.append("")
 
         # Codebase context
-        user_parts.extend([
-            "## Codebase Context",
-            "",
-            f"- **Public-facing:** {public_facing}",
-            f"- **Data sensitivity:** {data_sensitivity}",
-        ])
+        user_parts.extend(
+            [
+                "## Codebase Context",
+                "",
+                f"- **Public-facing:** {public_facing}",
+                f"- **Data sensitivity:** {data_sensitivity}",
+            ]
+        )
 
         if security_controls:
             user_parts.append(f"- **Security controls:** {', '.join(security_controls)}")
@@ -262,7 +276,9 @@ class Arbiter(Agent):
                 user_parts.append("**Similar past findings:**")
                 for finding in similar_past_findings[:5]:
                     if isinstance(finding, dict):
-                        user_parts.append(f"- {finding.get('type', 'Unknown')}: {finding.get('resolution', 'Unknown')}")
+                        kind = finding.get("type", "Unknown")
+                        resolution = finding.get("resolution", "Unknown")
+                        user_parts.append(f"- {kind}: {resolution}")
                     else:
                         user_parts.append(f"- {finding}")
                 user_parts.append("")
@@ -273,24 +289,26 @@ class Arbiter(Agent):
                 user_parts.append("")
 
         # Mission
-        user_parts.extend([
-            "## Your Mission",
-            "",
-            "For each finding:",
-            "1. Is this a real issue or false positive?",
-            "2. What's the true severity in this context?",
-            "3. Can this be exploited in practice?",
-            "4. What's the remediation effort?",
-            "",
-            "Then make a verdict:",
-            "- **BLOCK**: Critical/High issues that must be fixed before merge",
-            "- **WARN**: Medium/Low issues that should be tracked but don't block",
-            "- **PASS**: No actionable issues",
-            "",
-            "Be rigorous but not paranoid. We want to ship code, not block everything.",
-            "",
-            "Respond with valid JSON matching the schema in your instructions.",
-        ])
+        user_parts.extend(
+            [
+                "## Your Mission",
+                "",
+                "For each finding:",
+                "1. Is this a real issue or false positive?",
+                "2. What's the true severity in this context?",
+                "3. Can this be exploited in practice?",
+                "4. What's the remediation effort?",
+                "",
+                "Then make a verdict:",
+                "- **BLOCK**: Critical/High issues that must be fixed before merge",
+                "- **WARN**: Medium/Low issues that should be tracked but don't block",
+                "- **PASS**: No actionable issues",
+                "",
+                "Be rigorous but not paranoid. We want to ship code, not block everything.",
+                "",
+                "Respond with valid JSON matching the schema in your instructions.",
+            ]
+        )
 
         return [
             Message(role="system", content=ARBITER_SYSTEM_PROMPT),
@@ -369,6 +387,9 @@ class Arbiter(Agent):
 
         # Calculate total remediation effort
         total_effort = self._calculate_total_effort(blocking_issues + warnings)
+        findings_analyzed = (
+            len(blocking_issues) + len(warnings) + len(passed_findings) + len(false_positives)
+        )
 
         # Create verdict
         verdict = ArbiterVerdict(
@@ -386,7 +407,7 @@ class Arbiter(Agent):
             summary=data.get("summary", ""),
             key_concerns=data.get("key_concerns", []),
             recommendations=data.get("recommendations", []),
-            findings_analyzed=len(blocking_issues) + len(warnings) + len(passed_findings) + len(false_positives),
+            findings_analyzed=findings_analyzed,
             confidence=data.get("confidence", 0.8),
             assumptions=data.get("assumptions", []),
             limitations=limitations,
@@ -449,6 +470,7 @@ class Arbiter(Agent):
         findings = []
 
         for f in findings_data:
+            validated_severity = f.get("validated_severity", f.get("original_severity", "MEDIUM"))
             # Parse validation status
             try:
                 validation_status = FindingValidation(f.get("validation_status", "CONFIRMED"))
@@ -476,7 +498,7 @@ class Arbiter(Agent):
                     original_title=f.get("original_title", ""),
                     original_severity=f.get("original_severity", ""),
                     validation_status=validation_status,
-                    validated_severity=f.get("validated_severity", f.get("original_severity", "MEDIUM")),
+                    validated_severity=validated_severity,
                     adjusted_severity_reason=f.get("adjusted_severity_reason", ""),
                     exploitation_difficulty=exploitation_difficulty,
                     exploitation_prerequisites=f.get("exploitation_prerequisites", []),
@@ -562,9 +584,7 @@ class Arbiter(Agent):
             RemediationEffort.WEEKS: 80,
         }
 
-        total_hours = sum(
-            effort_hours.get(f.remediation_effort, 4) for f in findings
-        )
+        total_hours = sum(effort_hours.get(f.remediation_effort, 4) for f in findings)
 
         # Convert back to effort level
         if total_hours <= 0.5:
@@ -595,10 +615,9 @@ class Arbiter(Agent):
         """
         for issue in verdict.blocking_issues:
             # Critical + Easy to exploit = auto block
-            if (
-                issue.validated_severity == "CRITICAL"
-                and issue.exploitation_difficulty
-                in (ExploitationDifficulty.TRIVIAL, ExploitationDifficulty.EASY)
+            if issue.validated_severity == "CRITICAL" and issue.exploitation_difficulty in (
+                ExploitationDifficulty.TRIVIAL,
+                ExploitationDifficulty.EASY,
             ):
                 return True
 
@@ -609,9 +628,7 @@ class Arbiter(Agent):
                     return True
 
         # Multiple high severity issues
-        high_count = sum(
-            1 for i in verdict.blocking_issues if i.validated_severity == "HIGH"
-        )
+        high_count = sum(1 for i in verdict.blocking_issues if i.validated_severity == "HIGH")
         return high_count >= 3
 
     @staticmethod

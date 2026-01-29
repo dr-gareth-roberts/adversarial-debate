@@ -38,6 +38,8 @@ ENV/
 
 # Testing
 .pytest_cache/
+.hypothesis/
+.benchmarks/
 .coverage
 htmlcov/
 .tox/
@@ -45,6 +47,7 @@ htmlcov/
 
 # Type checking
 .mypy_cache/
+.ruff_cache/
 .dmypy.json
 dmypy.json
 
@@ -66,6 +69,12 @@ beads/
 
 # Demo outputs
 output/
+
+# Local cache
+.adversarial-cache/
+
+# Bevel local state
+.bevel/do_not_share/
 
 # OS
 .DS_Store

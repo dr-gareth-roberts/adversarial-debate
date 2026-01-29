@@ -5,7 +5,7 @@ Uses content hashing to detect changes and invalidate cache entries.
 """
 
 from .file_cache import FileCache
-from .hash import hash_content, hash_file
+from .hash import hash_content, hash_file, hash_file_content, normalize_code
 from .manager import CacheManager
 
 __all__ = [
@@ -13,4 +13,6 @@ __all__ = [
     "FileCache",
     "hash_content",
     "hash_file",
+    "hash_file_content",
+    "normalize_code",
 ]

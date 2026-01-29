@@ -4,25 +4,24 @@ Measures execution time and resource usage for security-critical paths.
 Run with: pytest tests/benchmarks/ --benchmark-only
 """
 
-import pytest
-import tempfile
-import os
 from pathlib import Path
+
+import pytest
 
 from adversarial_debate.cache.hash import hash_content, hash_file_content, normalize_code
 from adversarial_debate.sandbox import (
     SandboxConfig,
-    validate_identifier,
+    generate_secure_temp_name,
     validate_code_size,
+    validate_identifier,
     validate_inputs,
     validate_sandbox_config,
-    generate_secure_temp_name,
 )
-
 
 # =============================================================================
 # Hash Performance Benchmarks
 # =============================================================================
+
 
 class TestHashPerformance:
     """Benchmarks for content hashing operations."""
@@ -67,6 +66,7 @@ class TestHashPerformance:
 # Validation Performance Benchmarks
 # =============================================================================
 
+
 class TestValidationPerformance:
     """Benchmarks for input validation operations."""
 
@@ -109,6 +109,7 @@ class TestValidationPerformance:
 # Secure Random Generation Benchmarks
 # =============================================================================
 
+
 class TestSecureRandomPerformance:
     """Benchmarks for cryptographic operations."""
 
@@ -120,6 +121,7 @@ class TestSecureRandomPerformance:
 
     def test_generate_many_temp_names(self, benchmark) -> None:
         """Benchmark generating many unique temp names."""
+
         def generate_many():
             return [generate_secure_temp_name() for _ in range(100)]
 
@@ -130,6 +132,7 @@ class TestSecureRandomPerformance:
 # =============================================================================
 # File I/O Benchmarks
 # =============================================================================
+
 
 class TestFileIOPerformance:
     """Benchmarks for file operations."""
@@ -162,6 +165,7 @@ class TestFileIOPerformance:
 # =============================================================================
 # Memory Usage Tests
 # =============================================================================
+
 
 class TestMemoryUsage:
     """Tests for memory efficiency of operations."""

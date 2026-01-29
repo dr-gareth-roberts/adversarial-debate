@@ -1,19 +1,19 @@
 # Adversarial Debate - Docker Compose Configuration
 #
 # Usage:
-#   docker-compose run --rm analyze exploit ./src
-#   docker-compose run --rm analyze break ./src
-#   docker-compose run --rm analyze chaos ./src
+#   docker-compose run --rm analyze analyze exploit ./src
+#   docker-compose run --rm analyze analyze break ./src
+#   docker-compose run --rm analyze analyze chaos ./src
 #
 # With custom API key:
-#   ANTHROPIC_API_KEY=your-key docker-compose run --rm analyze exploit ./src
+#   ANTHROPIC_API_KEY=your-key docker-compose run --rm analyze analyze exploit ./src
 #
 # With OpenAI:
-#   OPENAI_API_KEY=your-key docker-compose --profile openai run --rm analyze-openai exploit ./src
+#   OPENAI_API_KEY=your-key docker-compose --profile openai run --rm analyze-openai analyze exploit ./src
 #
 # With local Ollama:
 #   docker-compose --profile ollama up -d ollama
-#   docker-compose --profile ollama run --rm analyze-ollama exploit ./src
+#   docker-compose --profile ollama run --rm analyze-ollama analyze exploit ./src
 
 services:
   # ==========================================================================
@@ -25,8 +25,10 @@ services:
       dockerfile: Dockerfile
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=${LOG_FORMAT:-human}
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
+      - ADVERSARIAL_LOG_LEVEL=${ADVERSARIAL_LOG_LEVEL:-INFO}
+      - ADVERSARIAL_LOG_FORMAT=${ADVERSARIAL_LOG_FORMAT:-text}
     volumes:
       # Mount current directory for code analysis
       - .:/code:ro
@@ -52,9 +54,11 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - LLM_PROVIDER=openai
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=${LOG_FORMAT:-human}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o}
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
+      - ADVERSARIAL_LOG_LEVEL=${ADVERSARIAL_LOG_LEVEL:-INFO}
+      - ADVERSARIAL_LOG_FORMAT=${ADVERSARIAL_LOG_FORMAT:-text}
     volumes:
       - .:/code:ro
       - ./output:/output
@@ -82,8 +86,10 @@ services:
       - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
       - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-2024-02-01}
       - LLM_PROVIDER=azure
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=${LOG_FORMAT:-human}
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
+      - ADVERSARIAL_LOG_LEVEL=${ADVERSARIAL_LOG_LEVEL:-INFO}
+      - ADVERSARIAL_LOG_FORMAT=${ADVERSARIAL_LOG_FORMAT:-text}
     volumes:
       - .:/code:ro
       - ./output:/output
@@ -124,9 +130,11 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - LLM_PROVIDER=ollama
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=${LOG_FORMAT:-human}
+      - LLM_MODEL=${LLM_MODEL:-llama3.2}
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
+      - ADVERSARIAL_LOG_LEVEL=${ADVERSARIAL_LOG_LEVEL:-INFO}
+      - ADVERSARIAL_LOG_FORMAT=${ADVERSARIAL_LOG_FORMAT:-text}
     volumes:
       - .:/code:ro
       - ./output:/output
@@ -158,8 +166,11 @@ services:
       - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
       - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=${LOG_FORMAT:-human}
+      - LLM_MODEL=${LLM_MODEL:-}
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
+      - ADVERSARIAL_LOG_LEVEL=${ADVERSARIAL_LOG_LEVEL:-INFO}
+      - ADVERSARIAL_LOG_FORMAT=${ADVERSARIAL_LOG_FORMAT:-text}
     volumes:
       - .:/code:ro
       - ./output:/output
@@ -188,8 +199,10 @@ services:
       - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://localhost:11434}
       - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
-      - LOG_LEVEL=DEBUG
-      - LOG_FORMAT=human
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
+      - ADVERSARIAL_LOG_LEVEL=DEBUG
+      - ADVERSARIAL_LOG_FORMAT=text
     volumes:
       - .:/code
       - ./output:/output
@@ -207,10 +220,12 @@ services:
       dockerfile: Dockerfile
       args:
         INSTALL_ALL_PROVIDERS: "true"
+        INSTALL_DEV: "true"
     volumes:
       - .:/app
     working_dir: /app
-    command: uv run pytest tests/ -v
+    entrypoint: ["python", "-m", "pytest"]
+    command: ["tests/", "-v"]
     environment:
       - PYTHONPATH=/app/src
 
@@ -223,8 +238,10 @@ services:
       dockerfile: Dockerfile
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=${LOG_FORMAT:-human}
+      - ADVERSARIAL_OUTPUT_DIR=/output
+      - ADVERSARIAL_BEAD_LEDGER=/output/beads/ledger.jsonl
+      - ADVERSARIAL_LOG_LEVEL=${ADVERSARIAL_LOG_LEVEL:-INFO}
+      - ADVERSARIAL_LOG_FORMAT=${ADVERSARIAL_LOG_FORMAT:-text}
     volumes:
       - .:/code:ro
       - ./output:/output

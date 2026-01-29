@@ -1,17 +1,20 @@
-.PHONY: demo lint format typecheck test
+.PHONY: demo lint format typecheck test import-cycles
 
 # Deterministic demo (no API key required)
 demo:
-	LLM_PROVIDER=mock ADVERSARIAL_BEAD_LEDGER=output/ledger.jsonl python3 -m adversarial_debate.cli run examples/mini-app/ --output output
+	LLM_PROVIDER=mock ADVERSARIAL_BEAD_LEDGER=output/ledger.jsonl uv run adversarial-debate run examples/mini-app/ --output output
 
 lint:
-	uv run ruff check src/
+	uv run --extra dev ruff check src tests
 
 format:
-	uv run ruff format src/
+	uv run --extra dev ruff format src tests
 
 typecheck:
-	uv run mypy src/adversarial_debate --ignore-missing-imports
+	uv run --extra dev mypy src
 
 test:
-	uv run pytest tests/ -v
+	uv run --extra dev pytest tests/ -v
+
+import-cycles:
+	uv run python scripts/check_import_cycles.py

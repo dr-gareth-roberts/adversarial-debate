@@ -110,7 +110,13 @@ runs:
     - name: Install adversarial-debate (from action source)
       shell: bash
       run: |
-        pip install "$GITHUB_ACTION_PATH"
+        set -euo pipefail
+        PROVIDER="${{ inputs.provider }}"
+        if [ "$PROVIDER" = "openai" ] || [ "$PROVIDER" = "azure" ]; then
+          pip install "$GITHUB_ACTION_PATH[openai]"
+        else
+          pip install "$GITHUB_ACTION_PATH"
+        fi
 
     - name: Run security analysis
       id: analyze
@@ -146,7 +152,7 @@ runs:
             --fail-on never
           TOOL_EXIT=$?
         else
-          adversarial-debate analyze "$AGENT" "$TARGET" --json-output --output results.raw.json
+          adversarial-debate --json-output --output results.raw.json analyze "$AGENT" "$TARGET"
           TOOL_EXIT=$?
 
           python3 - <<'PY'

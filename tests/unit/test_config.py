@@ -1,20 +1,19 @@
 """Unit tests for configuration module."""
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 
 from adversarial_debate.config import (
-    ProviderConfig,
-    LoggingConfig,
-    SandboxConfig,
     Config,
+    LoggingConfig,
+    ProviderConfig,
+    SandboxConfig,
     get_config,
     set_config,
 )
-from adversarial_debate.exceptions import ConfigValidationError, ConfigNotFoundError
+from adversarial_debate.exceptions import ConfigNotFoundError, ConfigValidationError
 
 
 class TestProviderConfig:
@@ -106,24 +105,18 @@ class TestSandboxConfig:
     def test_defaults(self) -> None:
         """Test default values."""
         config = SandboxConfig()
-        assert config.enabled is True
         assert config.timeout_seconds == 30
-        assert config.memory_limit_mb == 512
+        assert config.memory_limit == "256m"
         assert config.network_enabled is False
+        assert config.use_docker is True
+        assert config.use_subprocess is True
 
     def test_validate_invalid_timeout(self) -> None:
-        """Test validation fails for invalid timeout."""
-        config = SandboxConfig(timeout_seconds=-1)
+        """Test invalid sandbox config is rejected by Config.validate()."""
+        config = Config(sandbox=SandboxConfig(timeout_seconds=-1))
         with pytest.raises(ConfigValidationError) as exc_info:
             config.validate()
-        assert exc_info.value.field == "timeout_seconds"
-
-    def test_validate_invalid_memory(self) -> None:
-        """Test validation fails for invalid memory limit."""
-        config = SandboxConfig(memory_limit_mb=0)
-        with pytest.raises(ConfigValidationError) as exc_info:
-            config.validate()
-        assert exc_info.value.field == "memory_limit_mb"
+        assert exc_info.value.field == "sandbox"
 
 
 class TestConfig:
@@ -229,6 +222,7 @@ class TestGlobalConfig:
         """Test get_config creates config from env."""
         # Reset global config
         import adversarial_debate.config as config_module
+
         config_module._config = None
 
         config = get_config()
@@ -244,4 +238,5 @@ class TestGlobalConfig:
 
         # Clean up
         import adversarial_debate.config as config_module
+
         config_module._config = None

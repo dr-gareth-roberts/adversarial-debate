@@ -1,10 +1,6 @@
 """Unit tests for base agent functionality."""
 
-import pytest
-
-from adversarial_debate.agents import Agent, AgentContext, AgentOutput
-from adversarial_debate.providers import Message, ModelTier
-from adversarial_debate.store import BeadType
+from adversarial_debate.agents import AgentContext, AgentOutput
 
 
 class TestAgentContext:
