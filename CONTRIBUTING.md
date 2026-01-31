@@ -13,8 +13,8 @@ Thank you for your interest in contributing to adversarial-debate! This document
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/dr-gareth-roberts/adverserial-debate.git
-   cd adverserial-debate
+   git clone https://github.com/dr-gareth-roberts/adversarial-debate.git
+   cd adversarial-debate
    ```
 
 2. Install dependencies:
@@ -100,9 +100,9 @@ def analyze_code(code: str, focus_areas: list[str] | None = None) -> AnalysisRes
     """
 ```
 
-### Import Organization
+### Import Organisation
 
-Imports should be organized in this order:
+Imports should be organised in this order:
 1. Standard library imports
 2. Third-party imports
 3. Local application imports
@@ -153,7 +153,7 @@ class MyAgent(Agent):
 
 ## Testing
 
-### Test Organization
+### Test Organisation
 
 - `tests/unit/`: Unit tests for individual components
 - `tests/integration/`: Integration tests for CLI and workflows
@@ -192,7 +192,7 @@ Releases are automated via GitHub Actions and triggered by version tags.
 
 The `Release` workflow builds and publishes to PyPI using trusted publishing
 (OIDC). Configure the PyPI project to trust this GitHub repository before
-tagging. The workflow also uploads built artifacts to the GitHub release.
+tagging. The workflow also uploads built artefacts to the GitHub release.
 
 ### PR Guidelines
 
@@ -208,7 +208,7 @@ When reporting bugs, please include:
 - Python version
 - Operating system
 - Steps to reproduce
-- Expected vs actual behavior
+- Expected vs actual behaviour
 - Error messages and stack traces
 
 ## Questions?

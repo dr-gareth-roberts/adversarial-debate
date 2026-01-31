@@ -37,7 +37,7 @@ adversarial-debate run src/ --output baseline-run/
 ls baseline-run/run-*/bundle.json
 ```
 
-For CI, store the baseline as an artifact:
+For CI, store the baseline as an artefact:
 
 ```yaml
 - name: Upload baseline

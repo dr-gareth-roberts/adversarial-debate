@@ -22,7 +22,7 @@ adversarial-debate [GLOBAL OPTIONS] COMMAND [COMMAND OPTIONS] [ARGUMENTS]
 
 ### run
 
-Run the complete analysis pipeline: orchestrate → analyse → (cross-examine) → verdict.
+Run the complete analysis pipeline: orchestrate → `analyze` → (cross-examine) → verdict.
 
 ```bash
 adversarial-debate run TARGET [OPTIONS]
@@ -75,12 +75,12 @@ adversarial-debate run src/ --baseline previous-run.json
 adversarial-debate run . --files src/api/auth.py src/api/users.py
 ```
 
-### analyse
+### analyze
 
 Run a single agent on target code.
 
 ```bash
-adversarial-debate analyse AGENT TARGET [OPTIONS]
+adversarial-debate analyze AGENT TARGET [OPTIONS]
 ```
 
 **Arguments:**
@@ -102,16 +102,16 @@ adversarial-debate analyse AGENT TARGET [OPTIONS]
 
 ```bash
 # Find security vulnerabilities
-adversarial-debate analyse exploit src/api/
+adversarial-debate analyze exploit src/api/
 
 # Find logic bugs
-adversarial-debate analyse break src/core/calculations.py
+adversarial-debate analyze break src/core/calculations.py
 
 # Find resilience issues
-adversarial-debate analyse chaos src/services/
+adversarial-debate analyze chaos src/services/
 
 # Find cryptographic weaknesses
-adversarial-debate analyse crypto src/auth/
+adversarial-debate analyze crypto src/auth/
 ```
 
 ### orchestrate

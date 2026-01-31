@@ -506,7 +506,7 @@ bundle = build_results_bundle(
         provider="anthropic",
         started_at_iso=started.isoformat(),
         finished_at_iso=finished.isoformat(),
-        files_analysed=[str(f) for f in files],
+        files_analyzed=[str(f) for f in files],
     ),
     exploit_result=exploit_output.result,
     break_result=break_output.result,

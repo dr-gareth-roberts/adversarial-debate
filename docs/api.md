@@ -441,9 +441,9 @@ Finds exploitable cryptography and authentication-adjacent weaknesses, including
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `code` | `str` | Yes | Code to analyze |
+| `code` | `str` | Yes | Code to analyse |
 | `file_path` | `str` | Yes | Path to the file |
-| `function_name` | `str` | No | Specific function/class to analyze |
+| `function_name` | `str` | No | Specific function/class to analyse |
 | `language` | `str` | No | Programming language (default: `"python"`) |
 | `exposure` | `str` | No | Exposure level (`"public"`, `"authenticated"`, `"internal"`) |
 | `attack_hints` | `list[str]` | No | Hints from orchestrator |
@@ -1070,6 +1070,6 @@ AdversarialDebateError
 ## Related Documentation
 
 - [Architecture Deep Dive](architecture.md) - System overview and design principles
-- [Agent System Documentation](agents.md) - Detailed agent behavior
+- [Agent System Documentation](agents.md) - Detailed agent behaviour
 - [Data Structures Reference](data-structures.md) - Complete type definitions
 - [Pipeline Execution Guide](pipeline.md) - Step-by-step walkthrough

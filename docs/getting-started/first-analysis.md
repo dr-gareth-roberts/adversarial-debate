@@ -15,7 +15,7 @@ We'll analyse a deliberately vulnerable Flask application included in the reposi
 
 ```bash
 # If you cloned from source
-cd adverserial-debate
+cd adversarial-debate
 ls examples/mini-app/
 ```
 
@@ -214,16 +214,16 @@ Target a specific type of analysis:
 
 ```bash
 # Only look for security vulnerabilities
-adversarial-debate analyse exploit src/
+adversarial-debate analyze exploit src/
 
 # Only look for logic bugs
-adversarial-debate analyse break src/
+adversarial-debate analyze break src/
 
 # Only look for resilience issues
-adversarial-debate analyse chaos src/
+adversarial-debate analyze chaos src/
 
 # Only look for cryptographic issues
-adversarial-debate analyse crypto src/
+adversarial-debate analyze crypto src/
 ```
 
 ### Specific Files
@@ -231,7 +231,7 @@ adversarial-debate analyse crypto src/
 Focus on particular files:
 
 ```bash
-adversarial-debate analyse exploit src/api/auth.py src/api/users.py
+adversarial-debate analyze exploit src/api/auth.py src/api/users.py
 ```
 
 ### Skip the Verdict

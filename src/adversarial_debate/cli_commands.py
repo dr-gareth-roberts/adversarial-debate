@@ -13,8 +13,29 @@ from .cli_output import print_error, print_json
 from .cli_provider import _get_provider_from_config
 from .config import Config
 from .logging import get_logger
+from .path_filter import DEFAULT_IGNORE_PATTERNS, path_matches_any
 
 logger = get_logger(__name__)
+
+
+def _iter_python_files(root: Path, ignore_patterns: list[str]) -> list[Path]:
+    files: list[Path] = []
+    for py_file in root.rglob("*.py"):
+        if not path_matches_any(py_file, ignore_patterns):
+            files.append(py_file)
+    return files
+
+
+def _read_text_safe(path: Path) -> str:
+    """Read text with UTF-8 fallback handling for non-UTF8 files."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        logger.warning("Non-UTF8 file encountered, replacing invalid bytes: %s", path)
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        logger.warning("Failed to read file %s: %s", path, exc)
+        return ""
 
 
 async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
@@ -31,15 +52,15 @@ async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
     file_path = str(target_path)
 
     if target_path.is_file():
-        code = target_path.read_text()
+        code = _read_text_safe(target_path)
         files = [str(target_path)]
     else:
         # Read all Python files in directory
         code_parts = []
         files = []
-        for py_file in target_path.rglob("*.py"):
+        for py_file in _iter_python_files(target_path, DEFAULT_IGNORE_PATTERNS):
             files.append(str(py_file))
-            code_parts.append(f"# File: {py_file}\n{py_file.read_text()}\n")
+            code_parts.append(f"# File: {py_file}\n{_read_text_safe(py_file)}\n")
         code = "\n".join(code_parts)
 
     if not code.strip():
@@ -144,12 +165,12 @@ async def cmd_orchestrate(args: argparse.Namespace, config: Config) -> int:
 
     if target_path.is_file():
         changed_files.append({"path": str(target_path), "change_type": "modified"})
-        patches[str(target_path)] = target_path.read_text()[:2000]
+        patches[str(target_path)] = _read_text_safe(target_path)[:2000]
     else:
-        for py_file in target_path.rglob("*.py"):
+        for py_file in _iter_python_files(target_path, DEFAULT_IGNORE_PATTERNS):
             rel_path = str(py_file.relative_to(target_path))
             changed_files.append({"path": rel_path, "change_type": "modified"})
-            patches[rel_path] = py_file.read_text()[:2000]
+            patches[rel_path] = _read_text_safe(py_file)[:2000]
 
     if not changed_files:
         print_error("No Python files found")
@@ -362,21 +383,21 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
                 print_error(f"File not found: {fp}")
                 return 1
             files.append(str(p))
-            text = p.read_text()
+            text = _read_text_safe(p)
             code_parts.append(f"# File: {p}\n{text}\n")
             changed_files.append({"path": str(p), "change_type": "modified"})
             patches[str(p)] = text[:2000]
         code = "\n".join(code_parts)
     elif target_path.is_file():
-        code = target_path.read_text()
+        code = _read_text_safe(target_path)
         files = [str(target_path)]
         changed_files = [{"path": str(target_path), "change_type": "modified"}]
         patches = {str(target_path): code[:2000]}
     else:
-        for py_file in target_path.rglob("*.py"):
+        for py_file in _iter_python_files(target_path, DEFAULT_IGNORE_PATTERNS):
             rel_path = str(py_file.relative_to(target_path))
             files.append(str(py_file))
-            text = py_file.read_text()
+            text = _read_text_safe(py_file)
             code_parts.append(f"# File: {py_file}\n{text}\n")
             changed_files.append({"path": rel_path, "change_type": "modified"})
             patches[rel_path] = text[:2000]

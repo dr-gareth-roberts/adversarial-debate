@@ -272,7 +272,7 @@ For automatic analysis on every commit (slower):
   hooks:
     - id: adversarial-debate-auto
       name: Quick Security Check
-      entry: bash -lc 'LLM_PROVIDER=mock adversarial-debate analyse exploit "$@" || true'
+      entry: bash -lc 'LLM_PROVIDER=mock adversarial-debate analyze exploit "$@" || true'
       language: system
       types: [python]
       stages: [commit]
@@ -402,7 +402,7 @@ Test your CI configuration with the mock provider before using real API keys.
 
 ### 2. Use Baseline Comparison
 
-Store baselines as artifacts to track regressions and avoid re-analysing known issues.
+Store baselines as artefacts to track regressions and avoid re-analysing known issues.
 
 ### 3. Set Reasonable Time Budgets
 

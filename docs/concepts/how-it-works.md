@@ -285,7 +285,7 @@ Use for:
 - Pull request analysis
 - Comprehensive audits
 
-### Single Agent (`analyse`)
+### Single Agent (`analyze`)
 
 Use for:
 - Targeted analysis

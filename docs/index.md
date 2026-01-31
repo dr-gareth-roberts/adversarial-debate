@@ -29,7 +29,7 @@ Learn how to use the tool effectively.
 | Guide | Description |
 |-------|-------------|
 | [CLI Reference](guides/cli-reference.md) | Complete command-line reference |
-| [Configuration](guides/configuration.md) | Environment variables, config files, customization |
+| [Configuration](guides/configuration.md) | Environment variables, config files, customisation |
 | [Provider Setup](guides/providers/index.md) | Configure Anthropic, OpenAI, Azure, Ollama, or Mock |
 | [Output Formats](guides/output-formats.md) | JSON, SARIF, HTML, Markdown output options |
 | [Interpreting Results](guides/interpreting-results.md) | Understanding findings, severity, and remediation |
@@ -72,7 +72,7 @@ Detailed technical reference.
 
 | Guide | Description |
 |-------|-------------|
-| [Agent Reference](reference/agents.md) | Detailed agent behavior documentation |
+| [Agent Reference](reference/agents.md) | Detailed agent behaviour documentation |
 | [Data Structures](reference/data-structures.md) | Types, enums, and schemas |
 | [Architecture](reference/architecture.md) | System internals for contributors |
 
@@ -90,10 +90,10 @@ Get help and answers.
 
 ## Quick Links
 
-- [GitHub Repository](https://github.com/dr-gareth-roberts/adverserial-debate)
+- [GitHub Repository](https://github.com/dr-gareth-roberts/adversarial-debate)
 - [PyPI Package](https://pypi.org/project/adversarial-debate/)
-- [Report a Bug](https://github.com/dr-gareth-roberts/adverserial-debate/issues/new?template=bug_report.yml)
-- [Request a Feature](https://github.com/dr-gareth-roberts/adverserial-debate/issues/new?template=feature_request.yml)
+- [Report a Bug](https://github.com/dr-gareth-roberts/adversarial-debate/issues/new?template=bug_report.yml)
+- [Request a Feature](https://github.com/dr-gareth-roberts/adversarial-debate/issues/new?template=feature_request.yml)
 - [Contributing Guide](../CONTRIBUTING.md)
 
 ---

@@ -38,8 +38,8 @@ pip install adversarial-debate
 For development or to get the latest unreleased changes:
 
 ```bash
-git clone https://github.com/dr-gareth-roberts/adverserial-debate.git
-cd adverserial-debate
+git clone https://github.com/dr-gareth-roberts/adversarial-debate.git
+cd adversarial-debate
 
 # Install with development dependencies
 uv sync --extra dev

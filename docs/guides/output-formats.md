@@ -57,7 +57,7 @@ The `bundle.json` file is the canonical representation of all results:
     "provider": "anthropic",
     "started_at": "2024-01-15T14:30:22Z",
     "finished_at": "2024-01-15T14:32:45Z",
-    "files_analysed": ["src/api/users.py", "src/api/auth.py"],
+    "files_analyzed": ["src/api/users.py", "src/api/auth.py"],
     "version": "0.1.0"
   },
   "summary": {

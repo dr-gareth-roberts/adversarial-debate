@@ -299,9 +299,9 @@ The ExploitAgent answers: "Can an attacker exploit this code to compromise secur
 
 | Category | Code | Description | Detection Focus |
 |----------|------|-------------|-----------------|
-| **A01:2021** | Broken Access Control | Unauthorized access to resources | Missing auth checks, IDOR |
+| **A01:2021** | Broken Access Control | Unauthorised access to resources | Missing auth checks, IDOR |
 | **A02:2021** | Cryptographic Failures | Weak or missing encryption | Hardcoded secrets, weak algorithms |
-| **A03:2021** | Injection | SQL, NoSQL, OS, LDAP injection | Unsanitized input in queries |
+| **A03:2021** | Injection | SQL, NoSQL, OS, LDAP injection | Unsanitised input in queries |
 | **A04:2021** | Insecure Design | Flawed architecture | Missing security controls |
 | **A05:2021** | Security Misconfiguration | Improper settings | Debug enabled, default creds |
 | **A06:2021** | Vulnerable Components | Outdated dependencies | Known CVEs in imports |
@@ -626,7 +626,7 @@ USER MESSAGE:
 
 ## CryptoAgent
 
-The CryptoAgent specializes in cryptography and auth-adjacent weaknesses.
+The CryptoAgent specialises in cryptography and auth-adjacent weaknesses.
 
 ### Purpose
 

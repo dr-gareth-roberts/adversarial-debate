@@ -40,7 +40,7 @@ Results are based on the target path, so the same input produces the same output
 ## Example Output
 
 ```bash
-$ LLM_PROVIDER=mock adversarial-debate analyse exploit examples/mini-app/app.py
+$ LLM_PROVIDER=mock adversarial-debate analyze exploit examples/mini-app/app.py
 
 ============================================================
 ExploitAgent Analysis Results

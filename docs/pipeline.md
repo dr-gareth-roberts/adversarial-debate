@@ -81,7 +81,7 @@ The collected inputs are structured as:
 
 | Field | Type | Source | Description |
 |-------|------|--------|-------------|
-| `changed_files` | `list[dict]` | File system scan | Files to analyze with metadata |
+| `changed_files` | `list[dict]` | File system scan | Files to analyse with metadata |
 | `patches` | `dict[str, str]` | File content | File path to content/diff mapping |
 | `code` | `str` | Concatenated files | All code combined for context |
 | `files` | `list[str]` | File paths | List of all file paths |
@@ -124,7 +124,7 @@ if not code.strip():
 
 The ChaosOrchestrator analyses the inputs and creates a coordinated attack plan.
 
-### Orchestrator Initialization
+### Orchestrator Initialisation
 
 ```python
 from adversarial_debate.agents import ChaosOrchestrator
@@ -290,7 +290,7 @@ Time -->
 
 ### Collecting Findings
 
-The CLI normalizes outputs into a single list:
+The CLI normalises outputs into a single list:
 
 ```python
 combined_findings = []
@@ -364,7 +364,7 @@ and the canonical results bundle.
 
 The Arbiter reviews all findings and renders a final verdict.
 
-### Arbiter Initialization
+### Arbiter Initialisation
 
 ```python
 from adversarial_debate.agents import Arbiter
@@ -474,7 +474,7 @@ output/
 
 ### Writing Outputs
 
-The CLI writes these artifacts directly during `cmd_run`. See `src/adversarial_debate/cli_commands.py` for the
+The CLI writes these artefacts directly during `cmd_run`. See `src/adversarial_debate/cli_commands.py` for the
 exact implementation and flags (`--output`, `--bundle-file`, `--report-file`, `--format`,
 `--skip-debate`, `--skip-verdict`).
 
@@ -596,7 +596,7 @@ def filter_successful_outputs(outputs: list[AgentOutput]) -> list[AgentOutput]:
 
 ---
 
-## Performance Optimization
+## Performance Optimisation
 
 ### Parallel Execution Benefits
 

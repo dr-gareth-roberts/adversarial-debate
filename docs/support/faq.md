@@ -152,7 +152,7 @@ adversarial-debate run src/ --skip-agents chaos
 ### How do I analyse a specific function?
 
 ```bash
-adversarial-debate analyse src/api/users.py::get_user
+adversarial-debate analyze src/api/users.py::get_user
 ```
 
 ---
@@ -358,7 +358,7 @@ You've exceeded your provider's API rate limits. Solutions:
 ### Where can I get help?
 
 1. Check [Troubleshooting](troubleshooting.md)
-2. Search [GitHub Issues](https://github.com/dr-gareth-roberts/adverserial-debate/issues)
+2. Search [GitHub Issues](https://github.com/dr-gareth-roberts/adversarial-debate/issues)
 3. Open a new issue with debug output
 
 ## See Also

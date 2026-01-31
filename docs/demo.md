@@ -11,7 +11,7 @@ This demo uses the deterministic mock provider and the intentionally vulnerable 
 
 ```bash
 # Single-agent run
-LLM_PROVIDER=mock adversarial-debate analyse exploit examples/mini-app/app.py
+LLM_PROVIDER=mock adversarial-debate analyze exploit examples/mini-app/app.py
 
 # Full pipeline (orchestrate -> analyse -> verdict)
 LLM_PROVIDER=mock adversarial-debate run examples/mini-app/ --output output
@@ -51,4 +51,4 @@ The mock provider returns deterministic findings, so results are repeatable. Thi
 - `findings.json` is the combined set passed to the Arbiter (pre-debate).
 - `findings.debated.json` is the combined set after cross-examination (optional).
 - `verdict.json` contains the consolidated decision and remediation tasks.
-- `bundle.json` is the canonical, machine-friendly artifact used by formatters and baseline gating.
+- `bundle.json` is the canonical, machine-friendly artefact used by formatters and baseline gating.

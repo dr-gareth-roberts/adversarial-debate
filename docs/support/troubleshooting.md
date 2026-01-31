@@ -265,7 +265,7 @@ Warning: No files matched the target pattern
    ```
 2. Verify code is being read correctly:
    ```bash
-   adversarial-debate analyse src/file.py --debug
+   adversarial-debate analyze src/file.py --debug
    ```
 3. Check file isn't too large (may be truncated)
 4. Try with a more capable model:
@@ -466,7 +466,7 @@ adversarial-debate config validate
 If you're still stuck:
 
 1. **Search existing issues:**
-   [GitHub Issues](https://github.com/dr-gareth-roberts/adverserial-debate/issues)
+   [GitHub Issues](https://github.com/dr-gareth-roberts/adversarial-debate/issues)
 
 2. **Check the FAQ:**
    [FAQ](faq.md)

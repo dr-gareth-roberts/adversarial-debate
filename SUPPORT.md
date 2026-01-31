@@ -4,13 +4,13 @@
 
 Please use GitHub Discussions for questions, ideas, and general usage help.
 
-- Discussions: https://github.com/dr-gareth-roberts/adverserial-debate/discussions
+- Discussions: https://github.com/dr-gareth-roberts/adversarial-debate/discussions
 
 ## Reporting bugs
 
 For reproducible bugs, please open a GitHub issue.
 
-- Issues: https://github.com/dr-gareth-roberts/adverserial-debate/issues
+- Issues: https://github.com/dr-gareth-roberts/adversarial-debate/issues
 
 ## Reporting security issues
 

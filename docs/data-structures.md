@@ -454,8 +454,8 @@ class Bead:
 
 | Method | Return Type | Description |
 |--------|-------------|-------------|
-| `to_json()` | `str` | Serialize to JSON string |
-| `from_json(json_str)` | `Bead` | Deserialize from JSON (class method) |
+| `to_json()` | `str` | Serialise to JSON string |
+| `from_json(json_str)` | `Bead` | Deserialise from JSON (class method) |
 | `to_dict()` | `dict` | Convert to dictionary |
 | `from_dict(data)` | `Bead` | Create from dictionary (class method) |
 
