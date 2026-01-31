@@ -116,8 +116,8 @@ Examples:
     )
     analyze_parser.add_argument(
         "agent",
-        choices=["exploit", "break", "chaos"],
-        help="Agent to run (exploit, break, or chaos)",
+        choices=["exploit", "break", "chaos", "crypto"],
+        help="Agent to run (exploit, break, chaos, or crypto)",
     )
     analyze_parser.add_argument(
         "target",
@@ -291,7 +291,7 @@ Examples:
     )
     watch_parser.add_argument(
         "--agent",
-        choices=["exploit", "break", "chaos", "all"],
+        choices=["exploit", "break", "chaos", "crypto", "all"],
         default="all",
         help="Agent to run (default: all)",
     )

@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
     """Run a single agent analysis."""
-    from .agents import Agent, AgentContext, BreakAgent, ChaosAgent, ExploitAgent
+    from .agents import Agent, AgentContext, BreakAgent, ChaosAgent, CryptoAgent, ExploitAgent
     from .store import BeadStore
 
     target_path = Path(args.target)
@@ -48,7 +48,12 @@ async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
 
     # Check dry run early (before provider creation which may fail without API key)
     if config.dry_run:
-        agent_names = {"exploit": "ExploitAgent", "break": "BreakAgent", "chaos": "ChaosAgent"}
+        agent_names = {
+            "exploit": "ExploitAgent",
+            "break": "BreakAgent",
+            "chaos": "ChaosAgent",
+            "crypto": "CryptoAgent",
+        }
         print(f"Would run {agent_names[args.agent]} on {len(files)} file(s)")
         return 0
 
@@ -60,6 +65,8 @@ async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
         agent = ExploitAgent(provider, bead_store)
     elif args.agent == "break":
         agent = BreakAgent(provider, bead_store)
+    elif args.agent == "crypto":
+        agent = CryptoAgent(provider, bead_store)
     else:
         agent = ChaosAgent(provider, bead_store)
 
@@ -331,6 +338,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         BreakAgent,
         ChaosAgent,
         ChaosOrchestrator,
+        CryptoAgent,
         ExploitAgent,
     )
     from .store import BeadStore
@@ -384,7 +392,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
 
     # Check dry run early (before provider creation which may fail without API key)
     if config.dry_run:
-        print(f"Would run orchestrator + 3 agents + verdict on {len(files)} file(s)")
+        print(f"Would run orchestrator + 4 agents + verdict on {len(files)} file(s)")
         return 0
 
     # Create provider, bead store, and agents
@@ -394,6 +402,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     exploit = ExploitAgent(provider, bead_store)
     breaker = BreakAgent(provider, bead_store)
     chaos = ChaosAgent(provider, bead_store)
+    crypto = CryptoAgent(provider, bead_store)
     arbiter = Arbiter(provider, bead_store)
 
     from datetime import UTC, datetime
@@ -425,14 +434,70 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         print_error(f"Planning failed: {e}")
         return 1
 
+    # Wire orchestrator plan hints into each agent execution context.
+    from .attack_plan import AgentType, AttackPlan
+
+    hints_by_agent: dict[str, dict[str, Any]] = {
+        "exploit": {},
+        "break": {},
+        "chaos": {},
+        "crypto": {},
+    }
+
+    plan_dict = plan_output.result.get("attack_plan")
+    if isinstance(plan_dict, dict):
+        try:
+            plan = AttackPlan.from_dict(plan_dict)
+        except Exception:
+            plan = None
+        if plan is not None:
+            for agent_key, agent_type in (
+                ("exploit", AgentType.EXPLOIT_AGENT),
+                ("break", AgentType.BREAK_AGENT),
+                ("chaos", AgentType.CHAOS_AGENT),
+                ("crypto", AgentType.CRYPTO_AGENT),
+            ):
+                attacks = plan.get_attacks_by_agent(agent_type)
+
+                attack_hints: list[str] = []
+                focus_areas: list[str] = []
+                payload_hints: list[str] = []
+                success_indicators: list[str] = []
+                hints: list[str] = []
+
+                for a in attacks:
+                    for v in a.attack_vectors:
+                        if v.name:
+                            attack_hints.append(v.name)
+                        if v.category:
+                            focus_areas.append(v.category)
+                        payload_hints.extend(v.payload_hints or [])
+                        success_indicators.extend(v.success_indicators or [])
+                    hints.extend(a.hints or [])
+
+                merged: dict[str, Any] = {}
+                if attack_hints:
+                    merged["attack_hints"] = sorted(set(attack_hints))
+                if focus_areas:
+                    merged["focus_areas"] = sorted(set(focus_areas))
+                if payload_hints:
+                    merged["payload_hints"] = payload_hints
+                if success_indicators:
+                    merged["success_indicators"] = success_indicators
+                if hints:
+                    merged["hints"] = hints
+                hints_by_agent[agent_key] = merged
+
     # Agent analyses (parallel)
-    analysis_inputs = {
+    base_analysis_inputs = {
         "code": code,
         "file_path": file_path,
         "file_paths": files,
     }
 
-    async def run_agent(agent: Agent, task_id: str) -> AgentOutput:
+    async def run_agent(agent: Agent, task_id: str, extra_inputs: dict[str, Any]) -> AgentOutput:
+        analysis_inputs = dict(base_analysis_inputs)
+        analysis_inputs.update(extra_inputs)
         context = AgentContext(
             run_id=run_id,
             timestamp_iso=timestamp.isoformat(),
@@ -445,15 +510,16 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
 
     sem = asyncio.Semaphore(max(1, args.parallel))
 
-    async def with_limit(agent: Agent, task_id: str) -> AgentOutput:
+    async def with_limit(agent: Agent, task_id: str, extra_inputs: dict[str, Any]) -> AgentOutput:
         async with sem:
-            return await run_agent(agent, task_id)
+            return await run_agent(agent, task_id, extra_inputs)
 
     try:
-        exploit_output, break_output, chaos_output = await asyncio.gather(
-            with_limit(exploit, "exploit"),
-            with_limit(breaker, "break"),
-            with_limit(chaos, "chaos"),
+        exploit_output, break_output, chaos_output, crypto_output = await asyncio.gather(
+            with_limit(exploit, "exploit", hints_by_agent.get("exploit", {})),
+            with_limit(breaker, "break", hints_by_agent.get("break", {})),
+            with_limit(chaos, "chaos", hints_by_agent.get("chaos", {})),
+            with_limit(crypto, "crypto", hints_by_agent.get("crypto", {})),
         )
     except Exception as e:
         logger.exception("Agent execution failed")
@@ -464,6 +530,11 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     combined_findings = []
     combined_findings.extend(exploit_output.result.get("findings", []))
     combined_findings.extend(break_output.result.get("findings", []))
+    for f in crypto_output.result.get("findings", []):
+        crypto_finding = dict(f) if isinstance(f, dict) else {"raw": f}
+        crypto_finding.setdefault("agent", "CryptoAgent")
+        crypto_finding.setdefault("finding_type", "crypto")
+        combined_findings.append(crypto_finding)
     for experiment in chaos_output.result.get("experiments", []):
         chaos_finding = dict(experiment)
         chaos_finding["agent"] = "ChaosAgent"
@@ -475,6 +546,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     exploit_path = run_dir / "exploit_findings.json"
     break_path = run_dir / "break_findings.json"
     chaos_path = run_dir / "chaos_findings.json"
+    crypto_path = run_dir / "crypto_findings.json"
     combined_path = run_dir / "findings.json"
 
     with open(attack_plan_path, "w") as f:
@@ -485,6 +557,8 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         json.dump(break_output.result, f, indent=2, default=str)
     with open(chaos_path, "w") as f:
         json.dump(chaos_output.result, f, indent=2, default=str)
+    with open(crypto_path, "w") as f:
+        json.dump(crypto_output.result, f, indent=2, default=str)
     with open(combined_path, "w") as f:
         json.dump(combined_findings, f, indent=2, default=str)
 
@@ -509,6 +583,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
             exploit_result=exploit_output.result,
             break_result=break_output.result,
             chaos_result=chaos_output.result,
+            crypto_result=crypto_output.result,
             arbiter_result=None,
         )
 
@@ -521,7 +596,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
             task_id="cross-examination",
             inputs={
                 "findings": pre_bundle.get("findings", []),
-                "code_excerpt": analysis_inputs.get("code", "")[:20000],
+                "code_excerpt": base_analysis_inputs.get("code", "")[:20000],
                 "max_findings": args.debate_max_findings,
             },
         )
@@ -584,6 +659,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         exploit_result=exploit_output.result,
         break_result=break_output.result,
         chaos_result=chaos_output.result,
+        crypto_result=crypto_output.result,
         arbiter_result=verdict_output.result if verdict_output else None,
     )
 

@@ -49,6 +49,8 @@ class MockProvider(LLMProvider):
             payload = self._exploit_payload(file_path)
         elif agent == "break":
             payload = self._break_payload(file_path)
+        elif agent == "crypto":
+            payload = self._crypto_payload(file_path)
         elif agent == "chaos":
             payload = self._chaos_payload(file_path)
         elif agent == "orchestrator":
@@ -73,6 +75,8 @@ class MockProvider(LLMProvider):
             return "exploit"
         if "senior QA engineer" in system:
             return "break"
+        if "senior cryptography engineer" in system:
+            return "crypto"
         if "chaos engineer designing experiments" in system:
             return "chaos"
         if "red team coordinator" in system:
@@ -167,6 +171,47 @@ class MockProvider(LLMProvider):
             "confidence": 0.82,
             "assumptions": ["Endpoints are exposed without additional WAF rules"],
             "unknowns": ["No auth or rate limiting context provided"],
+        }
+
+    def _crypto_payload(self, file_path: str) -> dict[str, Any]:
+        return {
+            "target": {
+                "file_path": file_path,
+                "function_name": "verify_token",
+                "exposure": "public",
+            },
+            "findings": [
+                {
+                    "id": "CRYPTO-001",
+                    "title": "Predictable randomness used for secrets",
+                    "severity": "HIGH",
+                    "cwe_id": "CWE-330",
+                    "confidence": 0.8,
+                    "description": "Non-cryptographic PRNG is used for security-sensitive tokens.",
+                    "evidence": {
+                        "file": file_path,
+                        "line_start": 10,
+                        "line_end": 12,
+                        "snippet": "token = random.random()",
+                    },
+                    "attack": {
+                        "description": (
+                            "Attacker can predict tokens with enough samples/state "
+                            "leakage."
+                        ),
+                        "prerequisites": ["Attacker can obtain multiple tokens"],
+                        "impact": "Session/token forgery and account takeover.",
+                    },
+                    "remediation": {
+                        "immediate": "Use secrets.token_urlsafe() or secrets.randbelow().",
+                        "code_fix": "token = secrets.token_urlsafe(32)",
+                        "defense_in_depth": ["Rotate tokens", "Add token expiry"],
+                    },
+                }
+            ],
+            "confidence": 0.82,
+            "assumptions": ["Tokens are security-sensitive"],
+            "unknowns": ["No surrounding authentication context provided"],
         }
 
     def _break_payload(self, file_path: str) -> dict[str, Any]:

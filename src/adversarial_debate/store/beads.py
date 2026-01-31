@@ -32,6 +32,7 @@ class BeadType(str, Enum):
     ATTACK_PLAN = "attack_plan"
     BREAK_ANALYSIS = "break_analysis"
     EXPLOIT_ANALYSIS = "exploit_analysis"
+    CRYPTO_ANALYSIS = "crypto_analysis"
     CHAOS_ANALYSIS = "chaos_analysis"
     ARBITER_VERDICT = "arbiter_verdict"
     CROSS_EXAMINATION = "cross_examination"

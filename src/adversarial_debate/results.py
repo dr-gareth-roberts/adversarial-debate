@@ -87,6 +87,53 @@ def normalize_exploit_findings(findings: list[dict[str, Any]]) -> list[dict[str,
     return normalized
 
 
+def normalize_crypto_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for f in findings:
+        evidence = f.get("evidence") or {}
+        if not isinstance(evidence, dict):
+            evidence = {}
+
+        file_path = evidence.get("file") or f.get("file_path")
+        line = evidence.get("line_start")
+        snippet = evidence.get("snippet")
+
+        remediation = f.get("remediation") or {}
+        attack = f.get("attack") or {}
+
+        reproduction_steps: list[str] = []
+        attack_description = attack.get("description")
+        if isinstance(attack_description, str) and attack_description:
+            reproduction_steps.append(attack_description)
+        prerequisites = attack.get("prerequisites")
+        if isinstance(prerequisites, list):
+            for p in prerequisites:
+                if isinstance(p, str) and p:
+                    reproduction_steps.append(p)
+
+        finding = {
+            "id": f.get("id"),
+            "finding_type": "crypto",
+            "agent": "CryptoAgent",
+            "title": f.get("title"),
+            "severity": f.get("severity", "MEDIUM"),
+            "description": f.get("description"),
+            "category": "crypto",
+            "cwe": _parse_cwe_id(f.get("cwe_id")),
+            "confidence": f.get("confidence"),
+            "file_path": file_path,
+            "line": line,
+            "code_snippet": snippet,
+            "impact": attack.get("impact"),
+            "remediation": remediation.get("immediate") or remediation.get("code_fix"),
+            "reproduction_steps": reproduction_steps,
+            "raw": f,
+        }
+        finding["fingerprint"] = compute_fingerprint(finding)
+        normalized.append(finding)
+    return normalized
+
+
 def normalize_break_findings(
     findings: list[dict[str, Any]],
     *,
@@ -201,6 +248,7 @@ def build_results_bundle(
     exploit_result: dict[str, Any] | None = None,
     break_result: dict[str, Any] | None = None,
     chaos_result: dict[str, Any] | None = None,
+    crypto_result: dict[str, Any] | None = None,
     arbiter_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
@@ -216,6 +264,8 @@ def build_results_bundle(
         )
     if chaos_result:
         findings.extend(normalize_chaos_experiments(chaos_result.get("experiments", [])))
+    if crypto_result:
+        findings.extend(normalize_crypto_findings(crypto_result.get("findings", [])))
 
     verdict = normalize_verdict_for_reporting(arbiter_result) if arbiter_result else {}
 

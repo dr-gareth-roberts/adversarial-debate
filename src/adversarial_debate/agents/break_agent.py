@@ -11,6 +11,7 @@ This agent systematically probes code for:
 import json
 from typing import Any
 
+from ..knowledge import DANGEROUS_SINKS
 from ..providers import Message, ModelTier
 from ..store import BeadType
 from .base import Agent, AgentContext, AgentOutput
@@ -22,6 +23,12 @@ edge cases and failure modes.
 Your job is to BREAK code. Not review it. Not improve it. BREAK it.
 
 ## Attack Taxonomy
+
+### Security-Adjacent Logic Bugs
+- Authentication bypass via logic flaws (missing checks in specific flows)
+- Authorization bugs: role confusion, IDOR-style ownership checks, privilege escalation paths
+- Business logic bypass: negative quantity/price, coupon stacking, refund abuse
+- Time-based logic bugs: expiration off-by-one, time zone confusion, replay windows
 
 ### Boundary Values
 - Empty inputs: "", [], {}, None, 0
@@ -40,18 +47,31 @@ Your job is to BREAK code. Not review it. Not improve it. BREAK it.
 - Rapid sequential requests
 - Interleaved operations on shared state
 - Time-of-check to time-of-use (TOCTOU)
+- Double-submit / double-spend races (idempotency bugs)
+- Lost update anomalies (missing transaction isolation / compare-and-swap)
 
 ### State Corruption
 - Operations in wrong order
 - Partial completion (crash mid-operation)
 - Duplicate operations
 - Operations during invalid state
+- State machine bypass (skipping required transitions)
+- Inconsistent cache vs source-of-truth state
 
 ### Resource Exhaustion
 - Memory: large allocations, many small allocations
 - File handles: open without close
 - Connections: connection pool exhaustion
 - CPU: algorithmic complexity attacks (ReDoS, hash collision)
+
+## Analysis Procedure (do not include these steps in output)
+
+Before reporting a finding, internally verify breakability:
+1. Identify invariants the code assumes (types, ranges, ordering, idempotency)
+2. Identify what external inputs can violate those invariants
+3. Identify shared state and concurrency hazards (TOCTOU, lost update, double-submit)
+4. Construct a minimal PoC (code) that triggers the failure
+5. Calibrate severity by impact and likelihood
 
 ## Output Format
 
@@ -157,6 +177,12 @@ class BreakAgent(Agent):
         attack_hints = context.inputs.get("attack_hints", [])
         focus_areas = context.inputs.get("focus_areas", [])
 
+        # Orchestrator / CLI hints
+        hints = context.inputs.get("hints", [])
+        payload_hints = context.inputs.get("payload_hints", [])
+        success_indicators = context.inputs.get("success_indicators", [])
+        file_paths = context.inputs.get("file_paths", [])
+
         # Build context about the code
         code_context = context.inputs.get("code_context", {})
         dependencies = code_context.get("dependencies", [])
@@ -185,6 +211,24 @@ class BreakAgent(Agent):
             ]
         )
 
+        if file_paths and isinstance(file_paths, list) and len(file_paths) > 1:
+            user_message_parts.append("## Files In Scope")
+            user_message_parts.append("")
+            for fp in file_paths[:30]:
+                user_message_parts.append(f"- `{fp}`")
+            if len(file_paths) > 30:
+                user_message_parts.append(f"- _... and {len(file_paths) - 30} more_")
+            user_message_parts.append("")
+
+        sinks = DANGEROUS_SINKS.get("python", [])
+        if sinks:
+            user_message_parts.append("## Reference Knowledge")
+            user_message_parts.append("")
+            user_message_parts.append("**Common dangerous sinks (Python):**")
+            for s in sinks[:25]:
+                user_message_parts.append(f"- {s}")
+            user_message_parts.append("")
+
         # Add code context if available
         if dependencies or is_async or has_state or handles_input:
             user_message_parts.append("## Code Context")
@@ -206,6 +250,28 @@ class BreakAgent(Agent):
             for hint in attack_hints:
                 user_message_parts.append(f"- {hint}")
             user_message_parts.append("")
+
+        if any([payload_hints, success_indicators, hints]):
+            user_message_parts.append("## Attack Plan Hints")
+            user_message_parts.append("")
+
+            if payload_hints:
+                user_message_parts.append("**Payload hints (examples to try/adapt):**")
+                for ph in payload_hints[:30]:
+                    user_message_parts.append(f"- {ph}")
+                user_message_parts.append("")
+
+            if success_indicators:
+                user_message_parts.append("**Success indicators (what proves breakability):**")
+                for si in success_indicators[:30]:
+                    user_message_parts.append(f"- {si}")
+                user_message_parts.append("")
+
+            if hints:
+                user_message_parts.append("**Code hints:**")
+                for h in hints[:30]:
+                    user_message_parts.append(f"- {h}")
+                user_message_parts.append("")
 
         # Add focus areas if specified
         if focus_areas:

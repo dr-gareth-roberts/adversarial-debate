@@ -12,6 +12,7 @@ from adversarial_debate.agents import (
     Arbiter,
     BreakAgent,
     ChaosAgent,
+    CryptoAgent,
     ExploitAgent,
 )
 
@@ -61,6 +62,143 @@ async def test_exploit_agent_requires_payload(bead_store, mock_provider_factory)
     findings = output.result.get("findings", [])
     assert len(findings) == 1
     assert findings[0]["id"] == "EXPLOIT-002"
+
+
+@pytest.mark.anyio
+async def test_exploit_agent_includes_attack_plan_hints_in_prompt(
+    bead_store,
+    mock_provider_factory,
+) -> None:
+    response = json.dumps(
+        {
+            "target": {"file_path": "app.py", "function_name": "handler", "exposure": "public"},
+            "findings": [
+                {
+                    "id": "EXPLOIT-001",
+                    "title": "Has payload",
+                    "severity": "HIGH",
+                    "owasp_category": "A03:2021-Injection",
+                    "cwe_id": "CWE-89",
+                    "exploit": {"payload": "' OR '1'='1"},
+                }
+            ],
+            "attack_surface_analysis": {},
+            "confidence": 0.9,
+            "assumptions": [],
+            "unknowns": [],
+        }
+    )
+    provider = mock_provider_factory([response])
+    agent = ExploitAgent(provider, bead_store)
+    context = _make_context(
+        {
+            "code": "print('hi')",
+            "file_path": "app.py",
+            "file_paths": ["app.py", "other.py"],
+            "attack_hints": ["SQL Injection"],
+            "focus_areas": ["injection"],
+            "payload_hints": ["1 OR 1=1"],
+            "success_indicators": ["returns all rows"],
+            "hints": ["Look for f-strings building SQL"],
+        }
+    )
+
+    await agent.run(context)
+
+    assert provider.calls
+    messages = provider.calls[0]
+    system_msg = next(m for m in messages if m.role == "system")
+    user_msg = next(m for m in messages if m.role == "user")
+
+    assert "senior penetration tester" in system_msg.content
+    assert "## Attack Plan Hints" in user_msg.content
+    assert "SQL Injection" in user_msg.content
+    assert "1 OR 1=1" in user_msg.content
+    assert "returns all rows" in user_msg.content
+    assert "Look for f-strings building SQL" in user_msg.content
+
+
+@pytest.mark.anyio
+async def test_crypto_agent_requires_evidence_snippet(bead_store, mock_provider_factory) -> None:
+    response = json.dumps(
+        {
+            "target": {"file_path": "app.py", "function_name": "handler", "exposure": "public"},
+            "findings": [
+                {
+                    "id": "CRYPTO-001",
+                    "title": "Missing evidence",
+                    "severity": "HIGH",
+                    "evidence": {"file": "app.py"},
+                },
+                {
+                    "id": "CRYPTO-002",
+                    "title": "Has evidence",
+                    "severity": "HIGH",
+                    "evidence": {"file": "app.py", "snippet": "hashlib.md5(pw)"},
+                },
+            ],
+            "confidence": 0.9,
+            "assumptions": [],
+            "unknowns": [],
+        }
+    )
+    provider = mock_provider_factory([response])
+    agent = CryptoAgent(provider, bead_store)
+    context = _make_context({"code": "print('hi')", "file_path": "app.py"})
+
+    output = await agent.run(context)
+
+    findings = output.result.get("findings", [])
+    assert len(findings) == 1
+    assert findings[0]["id"] == "CRYPTO-002"
+
+
+@pytest.mark.anyio
+async def test_crypto_agent_includes_attack_plan_hints_in_prompt(
+    bead_store,
+    mock_provider_factory,
+) -> None:
+    response = json.dumps(
+        {
+            "target": {"file_path": "app.py", "function_name": "handler", "exposure": "public"},
+            "findings": [
+                {
+                    "id": "CRYPTO-001",
+                    "title": "Has evidence",
+                    "severity": "HIGH",
+                    "evidence": {"file": "app.py", "snippet": "hashlib.md5(pw)"},
+                }
+            ],
+            "confidence": 0.9,
+            "assumptions": [],
+            "unknowns": [],
+        }
+    )
+    provider = mock_provider_factory([response])
+    agent = CryptoAgent(provider, bead_store)
+    context = _make_context(
+        {
+            "code": "print('hi')",
+            "file_path": "app.py",
+            "attack_hints": ["Weak hashing"],
+            "payload_hints": ["dictionary attack"],
+            "success_indicators": ["offline crack feasible"],
+            "hints": ["Look for hashlib.md5"],
+        }
+    )
+
+    await agent.run(context)
+
+    messages = provider.calls[0]
+    system_msg = next(m for m in messages if m.role == "system")
+    user_msg = next(m for m in messages if m.role == "user")
+
+    assert "senior cryptography engineer" in system_msg.content
+    assert "## Attack Plan Hints" in user_msg.content
+    assert "Weak hashing" in user_msg.content
+    assert "dictionary attack" in user_msg.content
+    assert "offline crack feasible" in user_msg.content
+    assert "Look for hashlib.md5" in user_msg.content
 
 
 @pytest.mark.anyio

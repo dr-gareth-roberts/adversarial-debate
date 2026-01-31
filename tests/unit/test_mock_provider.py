@@ -27,3 +27,18 @@ async def test_mock_provider_returns_json() -> None:
     response = await provider.complete(messages, json_mode=True)
     data = json.loads(response.content)
     assert data["decision"] in {"BLOCK", "WARN", "PASS"}
+
+
+@pytest.mark.anyio
+async def test_mock_provider_crypto_agent() -> None:
+    provider = MockProvider()
+    messages = [
+        Message(
+            role="system",
+            content="You are a senior cryptography engineer and security auditor.",
+        ),
+        Message(role="user", content="**File:** `example.py`"),
+    ]
+    response = await provider.complete(messages, json_mode=True)
+    data = json.loads(response.content)
+    assert isinstance(data.get("findings"), list)

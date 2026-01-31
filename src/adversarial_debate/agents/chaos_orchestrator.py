@@ -53,6 +53,11 @@ agents:
 - Best for: External dependencies, network calls, database access, caching
 - Attack vectors: Dependency failures, timeouts, network issues, resource pressure
 
+### CryptoAgent
+- Finds cryptographic and auth-adjacent weaknesses
+- Best for: Password hashing, token/JWT handling, key management, randomness
+- Attack vectors: weak algorithms, hardcoded secrets, predictable randomness, timing issues
+
 ## Risk Assessment Factors
 
 Consider these when prioritizing:
@@ -133,7 +138,7 @@ You MUST respond with valid JSON in this exact format:
 
 Field constraints:
 - risk_level: one of LOW|MEDIUM|HIGH|CRITICAL
-- attacks[].agent: one of BreakAgent|ExploitAgent|ChaosAgent
+- attacks[].agent: one of BreakAgent|ExploitAgent|ChaosAgent|CryptoAgent
 - risk_score, total_risk_score: integer 0-100
 - priority: integer 1-5 (1 = highest priority)
 - confidence: float 0.0-1.0
@@ -350,6 +355,7 @@ class ChaosOrchestrator(Agent):
                 "BreakAgent": len(plan.get_attacks_by_agent(AgentType.BREAK_AGENT)),
                 "ExploitAgent": len(plan.get_attacks_by_agent(AgentType.EXPLOIT_AGENT)),
                 "ChaosAgent": len(plan.get_attacks_by_agent(AgentType.CHAOS_AGENT)),
+                "CryptoAgent": len(plan.get_attacks_by_agent(AgentType.CRYPTO_AGENT)),
             },
             "parallel_groups": len(plan.parallel_groups),
             "skipped_count": len(plan.skipped),

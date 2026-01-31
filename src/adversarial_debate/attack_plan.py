@@ -16,6 +16,7 @@ class AgentType(str, Enum):
     BREAK_AGENT = "BreakAgent"
     EXPLOIT_AGENT = "ExploitAgent"
     CHAOS_AGENT = "ChaosAgent"
+    CRYPTO_AGENT = "CryptoAgent"
 
 
 class AttackPriority(int, Enum):
