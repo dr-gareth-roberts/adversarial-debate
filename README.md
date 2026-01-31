@@ -16,7 +16,7 @@
 [![Security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://bandit.readthedocs.io/)
 
 [Quickstart](#quickstart) •
-[Documentation](#documentation) •
+[Documentation](docs/index.md) •
 [Examples](examples/) •
 [Contributing](CONTRIBUTING.md)
 
@@ -185,16 +185,16 @@ asyncio.run(run_in_sandbox())
 
 ## Documentation
 
-Start here: `docs/index.md`.
+Start here: [`docs/index.md`](docs/index.md).
 
 Highlights:
 
-- Getting started: `docs/getting-started/quickstart.md`
-- CLI reference: `docs/guides/cli-reference.md`
-- Configuration: `docs/guides/configuration.md`
-- Output formats: `docs/guides/output-formats.md`
-- CI/CD integration: `docs/integration/ci-cd.md`
-- Developer guides: `docs/developers/`
+- Getting started: [`docs/getting-started/quickstart.md`](docs/getting-started/quickstart.md)
+- CLI reference: [`docs/guides/cli-reference.md`](docs/guides/cli-reference.md)
+- Configuration: [`docs/guides/configuration.md`](docs/guides/configuration.md)
+- Output formats: [`docs/guides/output-formats.md`](docs/guides/output-formats.md)
+- CI/CD integration: [`docs/integration/ci-cd.md`](docs/integration/ci-cd.md)
+- Developer guides: [`docs/developers/`](docs/developers/)
 
 ## Development
 
