@@ -50,7 +50,7 @@ async def analyse_code(code: str, file_path: str) -> dict:
     # Initialise components
     provider = get_provider("anthropic")  # or "mock" for testing
     store = BeadStore("beads/ledger.jsonl")
-    
+
     timestamp = datetime.now(UTC)
     base_context = {
         "run_id": f"run-{timestamp.strftime('%Y%m%d%H%M%S')}",
@@ -58,7 +58,7 @@ async def analyse_code(code: str, file_path: str) -> dict:
         "policy": {},
         "thread_id": "analysis-thread",
     }
-    
+
     # Step 1: Create attack plan
     orchestrator = ChaosOrchestrator(provider, store)
     plan_ctx = AgentContext(
@@ -70,7 +70,7 @@ async def analyse_code(code: str, file_path: str) -> dict:
         },
     )
     plan_output = await orchestrator.run(plan_ctx)
-    
+
     # Step 2: Run red team agents
     exploit_agent = ExploitAgent(provider, store)
     analysis_ctx = AgentContext(
@@ -79,7 +79,7 @@ async def analyse_code(code: str, file_path: str) -> dict:
         inputs={"code": code, "file_path": file_path},
     )
     exploit_output = await exploit_agent.run(analysis_ctx)
-    
+
     # Step 3: Get verdict
     arbiter = Arbiter(provider, store)
     verdict_ctx = AgentContext(
@@ -88,7 +88,7 @@ async def analyse_code(code: str, file_path: str) -> dict:
         inputs={"findings": exploit_output.result.get("findings", [])},
     )
     verdict_output = await arbiter.run(verdict_ctx)
-    
+
     return verdict_output.result
 
 
@@ -187,7 +187,7 @@ class AgentOutput:
     assumptions: list[str]       # Assumptions made
     unknowns: list[str]          # Things that couldn't be determined
     errors: list[str]            # Errors encountered
-    
+
     @property
     def success(self) -> bool:
         return len(self.errors) == 0
@@ -202,7 +202,7 @@ if output.success:
     print(f"Agent: {output.agent_name}")
     print(f"Confidence: {output.confidence:.0%}")
     print(f"Findings: {len(output.result.get('findings', []))}")
-    
+
     for finding in output.result.get("findings", []):
         print(f"  [{finding['severity']}] {finding['title']}")
 else:
@@ -759,7 +759,7 @@ class LLMProvider(ABC):
     ) -> LLMResponse:
         """Generate a completion from the model."""
         ...
-    
+
     @abstractmethod
     def get_model_for_tier(self, tier: ModelTier) -> str:
         """Get the appropriate model name for a given tier."""

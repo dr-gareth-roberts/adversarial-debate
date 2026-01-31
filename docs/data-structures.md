@@ -779,8 +779,8 @@ The following diagram shows how the main types relate to each other:
     Attack          ParallelGroup   SkipReason
         |
     AttackVector
-        
-        
+
+
                   ArbiterVerdict
                         |
     +-------------------+-------------------+

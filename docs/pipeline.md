@@ -62,7 +62,7 @@ handles input collection (and is re-exported from `adversarial_debate.cli` for c
 ```python
 async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     target_path = Path(args.target)
-    
+
     # Collect files based on target type
     if target_path.is_file():
         code = target_path.read_text()
@@ -580,17 +580,17 @@ If some agents fail, the pipeline continues with available results:
 def filter_successful_outputs(outputs: list[AgentOutput]) -> list[AgentOutput]:
     successful = []
     failed = []
-    
+
     for output in outputs:
         if output.errors:
             failed.append(output)
             logger.warning(f"{output.agent_name} had errors: {output.errors}")
         else:
             successful.append(output)
-    
+
     if not successful:
         raise PipelineError("All agents failed")
-    
+
     return successful
 ```
 

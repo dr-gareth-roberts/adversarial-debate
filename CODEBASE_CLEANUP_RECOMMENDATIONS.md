@@ -4,7 +4,7 @@ Scope: all **git-tracked** files (`git ls-files`, 120 files).
 Goal: identify redundancy, dead/placeholder code, and files likely unnecessary. This is a recommendations-only document (no deletions performed).
 
 ## Quick Signals
-- TODO/FIXME/etc markers: 0 file(s)
+- Task markers: 0 file(s)
 - `NotImplementedError`: 0 file(s)
 - Debug breakpoints (`pdb`/`breakpoint()`): 0 file(s)
 
