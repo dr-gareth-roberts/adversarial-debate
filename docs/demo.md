@@ -21,6 +21,7 @@ Or use the helper script:
 
 ```bash
 ./scripts/demo.sh
+# or
 make demo
 ```
 
@@ -36,7 +37,9 @@ output/
     break_findings.json
     chaos_findings.json
     findings.json
+    findings.debated.json        # optional (if cross-examination runs and produces output)
     verdict.json
+    bundle.json                  # canonical bundle (override with --bundle-file)
 ```
 
 The mock provider returns deterministic findings, so results are repeatable. This makes it ideal for demos, recruiter reviews, and CI smoke tests.
@@ -45,5 +48,7 @@ The mock provider returns deterministic findings, so results are repeatable. Thi
 
 - `attack_plan.json` shows how ChaosOrchestrator prioritized targets.
 - `exploit_findings.json`, `break_findings.json`, `chaos_findings.json` show each agent's raw output.
-- `findings.json` is the combined set passed to the Arbiter.
+- `findings.json` is the combined set passed to the Arbiter (pre-debate).
+- `findings.debated.json` is the combined set after cross-examination (optional).
 - `verdict.json` contains the consolidated decision and remediation tasks.
+- `bundle.json` is the canonical, machine-friendly artifact used by formatters and baseline gating.

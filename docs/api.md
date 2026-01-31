@@ -899,7 +899,8 @@ adversarial-debate analyze <agent> <target>
 adversarial-debate orchestrate <target>
 
 # Run arbiter on findings
-adversarial-debate verdict <findings.json>
+# (accepts either a raw findings list, or a full bundle containing a "findings" key)
+adversarial-debate verdict <findings.json|bundle.json>
 
 # Run full pipeline
 adversarial-debate run <target>

@@ -213,7 +213,10 @@ Findings: 2
   [HIGH] Command injection via report runner
 ```
 
-The pipeline run writes `attack_plan.json`, `exploit_findings.json`, `break_findings.json`, `chaos_findings.json`, `findings.json`, and `verdict.json`.
+The pipeline run writes `attack_plan.json`, `exploit_findings.json`, `break_findings.json`,
+`chaos_findings.json`, `findings.json`, `verdict.json` (unless `--skip-verdict`), and the canonical
+`bundle.json` (override with `--bundle-file`). If cross-examination produces debated findings, they
+are written to `findings.debated.json`.
 
 #### Python API
 
@@ -375,7 +378,7 @@ pre-commit run adversarial-debate --hook-stage manual
     - `providers/`: LLM provider abstractions (Anthropic, etc.).
     - `sandbox/`: Secure execution environment.
     - `store/`: Immutable "Bead" ledger system.
-    - `cli.py`: Command-line interface.
+    - `cli.py`: Command-line interface entry point (implementation in `cli_commands.py`).
 - `tests/`: Comprehensive test suite.
 - `examples/`: Usage demonstrations.
 - `scripts/`: Helper scripts (demo, tooling).

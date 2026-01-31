@@ -56,7 +56,8 @@ The pipeline begins by collecting and preparing the inputs for analysis.
 
 ### CLI Entry Point
 
-When invoked via CLI, the `cmd_run` function in `cli.py` handles input collection:
+When invoked via CLI, the `cmd_run` implementation in `src/adversarial_debate/cli_commands.py`
+handles input collection (and is re-exported from `adversarial_debate.cli` for compatibility):
 
 ```python
 async def cmd_run(args: argparse.Namespace, config: Config) -> int:
@@ -473,7 +474,7 @@ output/
 
 ### Writing Outputs
 
-The CLI writes these artifacts directly during `cmd_run`. See `src/adversarial_debate/cli.py` for the
+The CLI writes these artifacts directly during `cmd_run`. See `src/adversarial_debate/cli_commands.py` for the
 exact implementation and flags (`--output`, `--bundle-file`, `--report-file`, `--format`,
 `--skip-debate`, `--skip-verdict`).
 
