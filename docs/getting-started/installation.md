@@ -69,7 +69,7 @@ After installation, verify everything is working:
 adversarial-debate --version
 
 # Run a quick test with the mock provider
-LLM_PROVIDER=mock adversarial-debate analyse exploit examples/mini-app/app.py
+LLM_PROVIDER=mock adversarial-debate analyze exploit examples/mini-app/app.py
 ```
 
 You should see output showing findings from the mock provider.

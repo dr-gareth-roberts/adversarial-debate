@@ -4,9 +4,9 @@ Welcome to the Adversarial Debate documentation. This guide covers everything fr
 
 ## What is Adversarial Debate?
 
-Adversarial Debate is a multi-agent AI security testing framework. It deploys specialized AI agents that attack your code from different angles—security vulnerabilities, logic bugs, resilience issues, and cryptographic weaknesses—then consolidates findings with confidence scoring and actionable remediation guidance.
+Adversarial Debate is a multi-agent AI security testing framework. It deploys specialised AI agents that attack your code from different angles—security vulnerabilities, logic bugs, resilience issues, and cryptographic weaknesses—then consolidates findings with confidence scoring and actionable remediation guidance.
 
-Think of it as having a team of expert security researchers reviewing your code, each with different specializations, working in parallel.
+Think of it as having a team of expert security researchers reviewing your code, each with different specialisations, working in parallel.
 
 ---
 

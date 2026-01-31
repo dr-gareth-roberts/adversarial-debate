@@ -51,7 +51,7 @@ class Agent(ABC):
     @abstractmethod
     def _parse_response(
         self, response: str, context: AgentContext
-    ) -> dict:
+    ) -> AgentOutput:
         """Parse LLM response into structured output."""
         ...
 
@@ -161,17 +161,21 @@ Return findings as JSON."""
 
     def _parse_response(
         self, response: str, context: AgentContext
-    ) -> dict:
+    ) -> AgentOutput:
         import json
 
         try:
             data = json.loads(response)
         except json.JSONDecodeError:
-            return {
-                "findings": [],
-                "error": "Failed to parse response",
-                "confidence": 0.0,
-            }
+            return AgentOutput(
+                agent_name=self.name,
+                result={"findings": [], "error": "Failed to parse response"},
+                beads_out=[],
+                confidence=0.0,
+                assumptions=[],
+                unknowns=[],
+                errors=["Failed to parse response"],
+            )
 
         findings = data.get("findings", [])
 
@@ -191,16 +195,20 @@ Return findings as JSON."""
                 "agent": self.name,
             })
 
-        return {
-            "findings": normalised,
-            "summary": {
-                "total_findings": len(normalised),
-                "by_level": self._count_by_level(normalised),
+        return AgentOutput(
+            agent_name=self.name,
+            result={
+                "findings": normalised,
+                "summary": {
+                    "total_findings": len(normalised),
+                    "by_level": self._count_by_level(normalised),
+                },
             },
-            "confidence": data.get("confidence", 0.75),
-            "assumptions": data.get("assumptions", []),
-            "unknowns": data.get("unknowns", []),
-        }
+            beads_out=[],  # Beads created in base run() method
+            confidence=data.get("confidence", 0.75),
+            assumptions=data.get("assumptions", []),
+            unknowns=data.get("unknowns", []),
+        )
 
     def _count_by_level(self, findings: list) -> dict:
         counts = {"A": 0, "AA": 0, "AAA": 0}
@@ -343,7 +351,7 @@ Additional hints:
 Always handle parsing errors gracefully:
 
 ```python
-def _parse_response(self, response: str, context: AgentContext) -> dict:
+def _parse_response(self, response: str, context: AgentContext) -> AgentOutput:
     import json
 
     # Try to extract JSON from markdown code blocks
@@ -359,12 +367,17 @@ def _parse_response(self, response: str, context: AgentContext) -> dict:
     try:
         data = json.loads(response)
     except json.JSONDecodeError as e:
-        return {
-            "findings": [],
-            "error": f"JSON parse error: {e}",
-            "raw_response": response[:500],
-            "confidence": 0.0,
-        }
+        return AgentOutput(
+            agent_name=self.name,
+            result={
+                "findings": [],
+                "error": f"JSON parse error: {e}",
+                "raw_response": response[:500],
+            },
+            beads_out=[],
+            confidence=0.0,
+            errors=[f"JSON parse error: {e}"],
+        )
 
     return self._normalise_findings(data)
 ```

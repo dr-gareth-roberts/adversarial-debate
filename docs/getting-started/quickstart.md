@@ -2,6 +2,8 @@
 
 Get your first security scan running in under 5 minutes—no API key required.
 
+> **Safety Reminder:** Only use this framework to test systems you own or have explicit written authorisation to test. Unauthorised security testing is illegal in most jurisdictions.
+
 ## Prerequisites
 
 - Python 3.11 or higher
@@ -22,8 +24,8 @@ pip install adversarial-debate
 The framework includes a mock provider that produces deterministic results without requiring an API key. This is perfect for getting started.
 
 ```bash
-# Analyse a single file
-LLM_PROVIDER=mock adversarial-debate analyse exploit examples/mini-app/app.py
+# Analyze a single file
+LLM_PROVIDER=mock adversarial-debate analyze exploit examples/mini-app/app.py
 
 # Or run the full pipeline on a directory
 LLM_PROVIDER=mock adversarial-debate run examples/mini-app/ --output output

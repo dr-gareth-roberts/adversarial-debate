@@ -11,6 +11,7 @@ This document provides comprehensive API documentation for the Adversarial Debat
   - [ExploitAgent](#exploitagent)
   - [BreakAgent](#breakagent)
   - [ChaosAgent](#chaosagent)
+  - [CryptoAgent](#cryptoagent)
   - [ChaosOrchestrator](#chaosorchestrator)
   - [Arbiter](#arbiter)
 - [Attack Plan Types](#attack-plan-types)
@@ -45,8 +46,8 @@ from adversarial_debate import (
 )
 
 
-async def analyze_code(code: str, file_path: str) -> dict:
-    # Initialize components
+async def analyse_code(code: str, file_path: str) -> dict:
+    # Initialise components
     provider = get_provider("anthropic")  # or "mock" for testing
     store = BeadStore("beads/ledger.jsonl")
     
@@ -93,7 +94,7 @@ async def analyze_code(code: str, file_path: str) -> dict:
 
 # Run the analysis
 code = Path("src/api/users.py").read_text()
-result = asyncio.run(analyze_code(code, "src/api/users.py"))
+result = asyncio.run(analyse_code(code, "src/api/users.py"))
 print(f"Verdict: {result.get('decision')}")
 ```
 
@@ -222,7 +223,7 @@ Finds security vulnerabilities mapped to OWASP Top 10 categories with working ex
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `code` | `str` | Yes | Code to analyze |
+| `code` | `str` | Yes | Code to analyse |
 | `file_path` | `str` | Yes | Path to the file |
 | `file_paths` | `list[str]` | No | All files in scope |
 | `focus_areas` | `list[str]` | No | Areas to focus on |
@@ -300,7 +301,7 @@ Finds logic bugs, edge cases, race conditions, and state corruption issues.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `code` | `str` | Yes | Code to analyze |
+| `code` | `str` | Yes | Code to analyse |
 | `file_path` | `str` | Yes | Path to the file |
 | `attack_hints` | `list[dict]` | No | Hints from orchestrator |
 | `focus_areas` | `list[str]` | No | Categories to focus on |
@@ -320,8 +321,8 @@ Finds logic bugs, edge cases, race conditions, and state corruption issues.
             "location": {"file": "src/accounts/balance.py", "line": 87},
             "trigger_condition": "deposit_amount > MAX_INT - current_balance",
             "proof_of_concept": "add_funds(account, 2147483647)",
-            "expected_behavior": "Reject deposit or use larger integer type",
-            "actual_behavior": "Balance becomes negative",
+            "expected_behaviour": "Reject deposit or use larger integer type",
+            "actual_behaviour": "Balance becomes negative",
             "impact": "Financial loss, data corruption",
             "remediation": "Use checked arithmetic or BigInt",
             "confidence": 0.88
@@ -357,7 +358,7 @@ output = await agent.run(context)
 
 ### ChaosAgent
 
-Designs resilience experiments to test system behavior under failure conditions.
+Designs resilience experiments to test system behaviour under failure conditions.
 
 | Property | Value |
 |----------|-------|
@@ -369,7 +370,7 @@ Designs resilience experiments to test system behavior under failure conditions.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `code` | `str` | Yes | Code to analyze |
+| `code` | `str` | Yes | Code to analyse |
 | `file_path` | `str` | Yes | Path to the file |
 | `infrastructure_context` | `dict` | No | Deployment info |
 | `focus_areas` | `list[str]` | No | Failure modes to test |
@@ -383,7 +384,7 @@ Designs resilience experiments to test system behavior under failure conditions.
             "experiment_id": "CHAOS-001",
             "title": "Database connection pool exhaustion",
             "category": "RESOURCE",
-            "description": "Test behavior when all DB connections are in use",
+            "description": "Test behaviour when all DB connections are in use",
             "hypothesis": "System should queue requests and return 503 after timeout",
             "target_component": "src/db/connection_pool.py",
             "failure_injection": {
@@ -421,6 +422,95 @@ context = AgentContext(
         "code": open("src/db/connection_pool.py").read(),
         "file_path": "src/db/connection_pool.py",
         "infrastructure_context": {"database": "postgresql", "cache": "redis"},
+    },
+)
+output = await agent.run(context)
+```
+
+### CryptoAgent
+
+Finds exploitable cryptography and authentication-adjacent weaknesses, including weak algorithms, hardcoded secrets, and timing vulnerabilities.
+
+| Property | Value |
+|----------|-------|
+| `name` | `"CryptoAgent"` |
+| `bead_type` | `BeadType.CRYPTO_ANALYSIS` |
+| `model_tier` | `ModelTier.HOSTED_LARGE` |
+
+**Input fields (in `context.inputs`):**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `code` | `str` | Yes | Code to analyze |
+| `file_path` | `str` | Yes | Path to the file |
+| `function_name` | `str` | No | Specific function/class to analyze |
+| `language` | `str` | No | Programming language (default: `"python"`) |
+| `exposure` | `str` | No | Exposure level (`"public"`, `"authenticated"`, `"internal"`) |
+| `attack_hints` | `list[str]` | No | Hints from orchestrator |
+| `focus_areas` | `list[str]` | No | Areas to focus on |
+| `hints` | `list[str]` | No | Code-level hints |
+| `payload_hints` | `list[str]` | No | Payload suggestions |
+| `success_indicators` | `list[str]` | No | Indicators of successful exploitation |
+
+**Output structure:**
+
+```python
+{
+    "target": {
+        "file_path": "src/auth/crypto.py",
+        "function_name": "hash_password",
+        "exposure": "public"
+    },
+    "findings": [
+        {
+            "id": "CRYPTO-001",
+            "title": "Weak hashing for passwords",
+            "severity": "HIGH",
+            "cwe_id": "CWE-327",
+            "confidence": 0.8,
+            "description": "MD5 used for password hashing",
+            "evidence": {
+                "file": "src/auth/crypto.py",
+                "line_start": 10,
+                "line_end": 12,
+                "snippet": "hashlib.md5(password).hexdigest()"
+            },
+            "attack": {
+                "description": "Rainbow table attack on MD5 hashes",
+                "prerequisites": ["Access to password hashes"],
+                "impact": "Account takeover"
+            },
+            "remediation": {
+                "immediate": "Switch to bcrypt or argon2",
+                "code_fix": "bcrypt.hashpw(password.encode(), bcrypt.gensalt())",
+                "defense_in_depth": ["Add rate limiting", "Implement MFA"]
+            }
+        }
+    ],
+    "summary": {
+        "total_findings": 1,
+        "by_severity": {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 0, "LOW": 0}
+    }
+}
+```
+
+**Example:**
+
+```python
+from adversarial_debate import CryptoAgent
+
+agent = CryptoAgent(provider, store)
+context = AgentContext(
+    run_id="run-001",
+    timestamp_iso="2024-01-15T14:30:22Z",
+    policy={},
+    thread_id="audit-001",
+    task_id="crypto",
+    inputs={
+        "code": open("src/auth/crypto.py").read(),
+        "file_path": "src/auth/crypto.py",
+        "function_name": "hash_password",
+        "focus_areas": ["hashing", "key management"],
     },
 )
 output = await agent.run(context)
@@ -752,6 +842,7 @@ if store.has_idempotency_key("audit-001:exploit:users.py"):
 | `EXPLOIT_ANALYSIS` | ExploitAgent |
 | `BREAK_ANALYSIS` | BreakAgent |
 | `CHAOS_ANALYSIS` | ChaosAgent |
+| `CRYPTO_ANALYSIS` | CryptoAgent |
 | `ARBITER_VERDICT` | Arbiter |
 
 ---

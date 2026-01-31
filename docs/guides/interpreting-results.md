@@ -196,7 +196,7 @@ Focus on logic bugs:
 - State machine violations
 - Type confusion
 
-**Key fields:** `category`, `trigger_condition`, `expected_behavior`, `actual_behavior`
+**Key fields:** `category`, `trigger_condition`, `expected_behaviour`, `actual_behaviour`
 
 ### ChaosAgent Findings
 

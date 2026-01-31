@@ -24,11 +24,25 @@
 
 ---
 
+> [!CAUTION]
+> ## ⚠️ SAFETY WARNING — READ BEFORE USE
+>
+> **This framework is for AUTHORISED SECURITY TESTING ONLY.**
+>
+> - **Potential for Serious Damage**: This tool is designed to find security vulnerabilities by simulating real attacks. If misused, it can cause serious damage to computer systems, networks, and data.
+> - **Explicit Permission Required**: You MUST have explicit, written permission from the system owner before testing any system. Unauthorised security testing is illegal in most jurisdictions.
+> - **Sandbox Executes Potentially Malicious Code**: The sandbox component executes code that may be intentionally malicious. Ensure proper isolation and never run untrusted code outside the hardened sandbox environment.
+> - **Not for Causing Harm**: This tool is NOT intended for causing harm to others, disrupting services, or any malicious purpose. Use it only for legitimate security research and authorised penetration testing.
+>
+> **Legal Disclaimer**: By using this software, you accept full responsibility for your actions. The authors and contributors are not liable for any damages, legal consequences, or harm resulting from the use or misuse of this framework. Ensure compliance with all applicable laws and regulations in your jurisdiction.
+
+---
+
 ## What is Adversarial Debate?
 
-Adversarial Debate is a **multi-agent AI security testing framework** that uses specialized agents to attack your code from different angles, then consolidates findings with confidence scoring.
+Adversarial Debate is a **multi-agent AI security testing framework** that uses specialised agents to attack your code from different angles, then consolidates findings with confidence scoring.
 
-Think of it as having a team of security experts—each with different specializations—reviewing your code simultaneously.
+Think of it as having a team of security experts—each with different specialisations—reviewing your code simultaneously.
 
 ```
                     ┌─────────────────────────────────────┐
@@ -72,7 +86,7 @@ Think of it as having a team of security experts—each with different specializ
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Agent Architecture** | Five specialized agents attack code from different angles |
+| **Multi-Agent Architecture** | Five specialised agents attack code from different angles |
 | **OWASP Top 10 Coverage** | Comprehensive security vulnerability detection |
 | **Logic Bug Detection** | Find edge cases, race conditions, and state corruption |
 | **Resilience Testing** | Test failure handling and resource exhaustion scenarios |
@@ -118,7 +132,7 @@ Makes sense of all the findings:
 
 - **Deduplication**: Merges similar findings from different agents
 - **Confidence Scoring**: Rates likelihood and impact
-- **Prioritization**: Ranks by severity and exploitability
+- **Prioritisation**: Ranks by severity and exploitability
 - **Remediation Roadmap**: Suggests fixes in priority order
 
 ---
@@ -181,13 +195,13 @@ cp .env.example .env
 #### CLI
 
 ```bash
-# Analyze a single file for exploits
-adversarial-debate analyze exploit src/api/users.py
+# Analyse a single file for exploits
+adversarial-debate analyse exploit src/api/users.py
 
 # Create a coordinated attack plan for a directory
 adversarial-debate orchestrate src/
 
-# Run the full pipeline (orchestrate + analyze + verdict)
+# Run the full pipeline (orchestrate + analyse + verdict)
 adversarial-debate run src/api/ --output results/
 ```
 
@@ -196,10 +210,10 @@ adversarial-debate run src/api/ --output results/
 Run a deterministic demo with the intentionally vulnerable mini app in `examples/mini-app/` (do not deploy it):
 
 ```bash
-# Analyze with deterministic findings
-LLM_PROVIDER=mock adversarial-debate analyze exploit examples/mini-app/app.py
+# Analyse with deterministic findings
+LLM_PROVIDER=mock adversarial-debate analyse exploit examples/mini-app/app.py
 
-# Full pipeline with artifacts under ./output/run-<timestamp>/
+# Full pipeline with artefacts under ./output/run-<timestamp>/
 LLM_PROVIDER=mock adversarial-debate run examples/mini-app/ --output output
 ```
 
@@ -245,7 +259,7 @@ from adversarial_debate import (
 
 from datetime import UTC, datetime
 
-async def analyze_code(code: str, file_path: str):
+async def analyse_code(code: str, file_path: str):
     """Run agents on code and get consolidated findings."""
     provider = get_provider("anthropic")  # or "mock" for a deterministic demo
     store = BeadStore()
@@ -273,7 +287,7 @@ async def analyze_code(code: str, file_path: str):
 
 # Example: Find potential issues
 vulnerable_code = "def get_user(id): return db.execute(f'SELECT * FROM users WHERE id={id}')"
-result = asyncio.run(analyze_code(vulnerable_code, "app.py"))
+result = asyncio.run(analyse_code(vulnerable_code, "app.py"))
 ```
 
 ---
@@ -395,7 +409,7 @@ make test
 
 ### Local Pre-commit (Optional)
 
-To run the adversarial pipeline locally as a pre-commit hook, use `--files` so only staged paths are analyzed.
+To run the adversarial pipeline locally as a pre-commit hook, use `--files` so only staged paths are analysed.
 This is best configured as a **manual** hook (so you can opt-in when you want deeper analysis).
 
 Example `.pre-commit-config.yaml` snippet for your repo:

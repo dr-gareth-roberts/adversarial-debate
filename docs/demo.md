@@ -11,9 +11,9 @@ This demo uses the deterministic mock provider and the intentionally vulnerable 
 
 ```bash
 # Single-agent run
-LLM_PROVIDER=mock adversarial-debate analyze exploit examples/mini-app/app.py
+LLM_PROVIDER=mock adversarial-debate analyse exploit examples/mini-app/app.py
 
-# Full pipeline (orchestrate -> analyze -> verdict)
+# Full pipeline (orchestrate -> analyse -> verdict)
 LLM_PROVIDER=mock adversarial-debate run examples/mini-app/ --output output
 ```
 
@@ -46,7 +46,7 @@ The mock provider returns deterministic findings, so results are repeatable. Thi
 
 ## Inspecting the Results
 
-- `attack_plan.json` shows how ChaosOrchestrator prioritized targets.
+- `attack_plan.json` shows how ChaosOrchestrator prioritised targets.
 - `exploit_findings.json`, `break_findings.json`, `chaos_findings.json` show each agent's raw output.
 - `findings.json` is the combined set passed to the Arbiter (pre-debate).
 - `findings.debated.json` is the combined set after cross-examination (optional).

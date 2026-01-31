@@ -11,7 +11,7 @@ This document provides a step-by-step walkthrough of how the Adversarial Debate 
 - [Stage 4: Verdict Rendering](#stage-4-verdict-rendering)
 - [Stage 5: Output Generation](#stage-5-output-generation)
 - [Error Handling](#error-handling)
-- [Performance Optimization](#performance-optimization)
+- [Performance Optimisation](#performance-optimisation)
 
 ---
 
@@ -114,7 +114,7 @@ if not files:
     return 1
 
 if not code.strip():
-    print_error("No code found to analyze")
+    print_error("No code found to analyse")
     return 1
 ```
 
@@ -122,7 +122,7 @@ if not code.strip():
 
 ## Stage 2: Attack Planning
 
-The ChaosOrchestrator analyzes the inputs and creates a coordinated attack plan.
+The ChaosOrchestrator analyses the inputs and creates a coordinated attack plan.
 
 ### Orchestrator Initialization
 
@@ -680,7 +680,7 @@ async def run_pipeline(target_path: str, output_dir: str) -> int:
     # Load config from env (or Config.from_file(...))
     config = Config.from_env()
 
-    # Initialize provider + bead store
+    # Initialise provider + bead store
     provider = get_provider(
         config.provider.provider,
         RuntimeProviderConfig(
@@ -721,7 +721,7 @@ async def run_pipeline(target_path: str, output_dir: str) -> int:
     )
     plan_output = await orchestrator.run(plan_context)
 
-    # Stage 2: Run the three core agents in parallel (current CLI behavior)
+    # Stage 2: Run the three core agents in parallel (current CLI behaviour)
     exploit = ExploitAgent(provider, bead_store)
     breaker = BreakAgent(provider, bead_store)
     chaos = ChaosAgent(provider, bead_store)
