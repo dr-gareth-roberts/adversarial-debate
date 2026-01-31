@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="github_adv_testing.jpg" alt="Adversarial Debate hero" width="100%" />
+
 # Adversarial Debate
 
 ### AI Red Team Security Testing Framework
