@@ -32,16 +32,11 @@ class TestOpenAIProvider:
         # Clear the cached module to force reimport
         monkeypatch.delitem(sys.modules, "adversarial_debate.providers.openai", raising=False)
 
-        # This should work - the module imports but sets HAS_OPENAI = False
-        # The actual error comes when instantiating
-        try:
-            from adversarial_debate.providers.openai import OpenAIProvider
+        # Module import should succeed (it sets HAS_OPENAI = False), but instantiation should fail.
+        from adversarial_debate.providers.openai import OpenAIProvider
 
-            with pytest.raises(ImportError, match="openai package not installed"):
-                OpenAIProvider()
-        except ImportError:
-            # If we can't even import, that's also acceptable
-            pass
+        with pytest.raises(ImportError, match="openai package not installed"):
+            OpenAIProvider()
 
     def test_provider_name(self):
         """Test provider name property."""

@@ -24,13 +24,10 @@ class TestAzureOpenAIProvider:
         monkeypatch.setattr(builtins, "__import__", mock_import)
         monkeypatch.delitem(sys.modules, "adversarial_debate.providers.azure", raising=False)
 
-        try:
-            from adversarial_debate.providers.azure import AzureOpenAIProvider
+        from adversarial_debate.providers.azure import AzureOpenAIProvider
 
-            with pytest.raises(ImportError, match="openai package not installed"):
-                AzureOpenAIProvider(ProviderConfig(base_url="https://test.openai.azure.com"))
-        except ImportError:
-            pass
+        with pytest.raises(ImportError, match="openai package not installed"):
+            AzureOpenAIProvider(ProviderConfig(base_url="https://test.openai.azure.com"))
 
     def test_requires_endpoint(self):
         """Test that endpoint is required."""

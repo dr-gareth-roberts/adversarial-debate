@@ -4,8 +4,9 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$ROOT_DIR"
 
-export LLM_PROVIDER=mock
 OUTPUT_DIR=${1:-output}
+
+export LLM_PROVIDER=mock
 export ADVERSARIAL_BEAD_LEDGER="$OUTPUT_DIR/ledger.jsonl"
 
 uv run adversarial-debate run examples/mini-app/ --output "$OUTPUT_DIR"

@@ -609,9 +609,7 @@ class ChaosOrchestrator(Agent):
                     batches.append(batch)
 
             # Add any remaining attacks as individual batches
-            batches.extend(
-                [attack] for attack in plan.attacks if attack.id not in processed
-            )
+            batches.extend([attack] for attack in plan.attacks if attack.id not in processed)
 
             return batches
 

@@ -290,7 +290,20 @@ def test_valid_hosts_accepted(hosts: list) -> None:
 
 @given(
     st.lists(
-        st.text(min_size=1, max_size=20).filter(lambda x: any(c in x for c in ";&|`$(){}<>")),
+        st.builds(
+            lambda prefix, metachar, suffix: f"{prefix}{metachar}{suffix}",
+            st.text(
+                alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-",
+                min_size=0,
+                max_size=10,
+            ),
+            st.sampled_from(list(";&|`$(){}<>")),
+            st.text(
+                alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-",
+                min_size=0,
+                max_size=9,
+            ),
+        ),
         min_size=1,
         max_size=3,
     )

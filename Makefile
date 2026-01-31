@@ -2,7 +2,7 @@
 
 # Deterministic demo (no API key required)
 demo:
-	LLM_PROVIDER=mock ADVERSARIAL_BEAD_LEDGER=output/ledger.jsonl uv run adversarial-debate run examples/mini-app/ --output output
+	./scripts/demo.sh output
 
 lint:
 	uv run --extra dev ruff check src tests
