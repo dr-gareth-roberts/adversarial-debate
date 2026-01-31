@@ -18,7 +18,7 @@ We take security vulnerabilities seriously. If you discover a security issue, pl
 
 Instead, please report security vulnerabilities by emailing:
 
-**Use [GitHub's private vulnerability reporting](https://github.com/dr-gareth-roberts/adverserial-debate/security/advisories/new)**
+**Use [GitHub's private vulnerability reporting](https://github.com/dr-gareth-roberts/adversarial-debate/security/advisories/new)**
 
 This is the preferred method. The form will guide you through the process.
 
@@ -88,13 +88,13 @@ Adversarial Debate is designed for security testing. The framework processes pot
 | **Code Execution Escape** | Docker isolation, resource limits, process sandboxing |
 | **Path Traversal** | Input validation, symlink detection, path canonicalization |
 | **Resource Exhaustion** | Memory/CPU limits, timeout enforcement, input size limits |
-| **Injection Attacks** | Input sanitization, parameterized queries in store |
+| **Injection Attacks** | Input sanitisation, parameterised queries in store |
 | **Sensitive Data Exposure** | API key hiding, secure temp file handling |
 | **Denial of Service** | Rate limiting, resource limits, timeout handling |
 
 ### Sandbox Security
 
-The sandbox execution environment implements multiple layers of defense:
+The sandbox execution environment implements multiple layers of defence:
 
 #### 1. Input Validation
 - **Identifier Validation**: Blocks dangerous Python builtins (`exec`, `eval`, `__import__`, etc.)
@@ -144,7 +144,7 @@ The sandbox execution environment implements multiple layers of defense:
 ### Bead Store Security
 
 - **Read-only Intent**: The bead store is append-only by design
-- **SQL Injection Prevention**: All queries use parameterized statements
+- **SQL Injection Prevention**: All queries use parameterised statements
 - **FTS5 Safe Queries**: Full-text search uses SQLite's built-in escaping
 - **File Permissions**: Database files created with restricted permissions
 
@@ -206,7 +206,7 @@ sandbox_config = SandboxConfig(
 
 - [ ] Never log sensitive data (API keys, tokens, credentials)
 - [ ] Validate all inputs, especially file paths and code
-- [ ] Use parameterized queries for database operations
+- [ ] Use parameterised queries for database operations
 - [ ] Follow the principle of least privilege
 - [ ] Add security tests for new features
 - [ ] Document security implications of changes

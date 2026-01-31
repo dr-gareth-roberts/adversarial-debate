@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Orchestration
 - **ChaosOrchestrator**: Attack strategy coordinator
-  - Risk-based prioritization
+  - Risk-based prioritisation
   - Multi-agent attack planning
   - Parallel execution support
   - Context-aware strategy selection
@@ -91,7 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Logging System**
   - Structured JSON logging for machine processing
-  - Human-readable console output with colors
+  - Human-readable console output with colours
   - Configurable log levels and destinations
   - Agent context tracking
 
@@ -126,5 +126,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/dr-gareth-roberts/adverserial-debate/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/dr-gareth-roberts/adverserial-debate/releases/tag/v0.1.0
+[Unreleased]: https://github.com/dr-gareth-roberts/adversarial-debate/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/dr-gareth-roberts/adversarial-debate/releases/tag/v0.1.0

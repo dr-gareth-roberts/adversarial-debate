@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .logging import get_logger
+from .path_filter import DEFAULT_IGNORE_PATTERNS, path_matches_any
 
 logger = get_logger(__name__)
 
@@ -31,20 +32,7 @@ class WatchConfig:
     """Configuration for file watching."""
 
     patterns: list[str] = field(default_factory=lambda: ["*.py"])
-    ignore_patterns: list[str] = field(
-        default_factory=lambda: [
-            "__pycache__/*",
-            "*.pyc",
-            ".git/*",
-            ".adversarial-cache/*",
-            "*.egg-info/*",
-            ".tox/*",
-            ".pytest_cache/*",
-            "node_modules/*",
-            "venv/*",
-            ".venv/*",
-        ]
-    )
+    ignore_patterns: list[str] = field(default_factory=lambda: list(DEFAULT_IGNORE_PATTERNS))
     debounce_seconds: float = 0.5
     recursive: bool = True
 
@@ -79,13 +67,7 @@ class FileWatcher:
 
     def _matches_pattern(self, path: Path, patterns: list[str]) -> bool:
         """Check if path matches any of the patterns."""
-        from fnmatch import fnmatch
-
-        path_str = str(path)
-        for pattern in patterns:
-            if fnmatch(path_str, pattern) or fnmatch(path.name, pattern):
-                return True
-        return False
+        return path_matches_any(path, patterns)
 
     def _should_watch(self, path: Path) -> bool:
         """Check if a path should be watched."""
@@ -245,6 +227,8 @@ class WatchRunner:
             if asyncio.iscoroutine(result):
                 self._analysis_task = asyncio.create_task(result)
                 await self._analysis_task
+            else:
+                await asyncio.to_thread(self.analyze_callback, changed_paths)
         except asyncio.CancelledError:
             logger.info("Analysis cancelled due to new changes")
         except Exception as e:
@@ -269,6 +253,8 @@ class WatchRunner:
                 result = self.analyze_callback(all_files)
                 if asyncio.iscoroutine(result):
                     await result
+                else:
+                    await asyncio.to_thread(self.analyze_callback, all_files)
 
             # Start watching
             await self._watcher.start()

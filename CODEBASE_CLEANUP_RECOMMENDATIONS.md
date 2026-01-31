@@ -4,7 +4,7 @@ Scope: all **git-tracked** files (`git ls-files`, 120 files).
 Goal: identify redundancy, dead/placeholder code, and files likely unnecessary. This is a recommendations-only document (no deletions performed).
 
 ## Quick Signals
-- TODO/FIXME/etc markers: 0 file(s)
+- Task markers: 0 file(s)
 - `NotImplementedError`: 0 file(s)
 - Debug breakpoints (`pdb`/`breakpoint()`): 0 file(s)
 
@@ -202,7 +202,7 @@ Goal: identify redundancy, dead/placeholder code, and files likely unnecessary. 
   - Example usage / demos.
 
 ### `examples/basic_analysis.py` — **KEEP**
-- Summary: Basic example: Analyze code with all agents. | Functions: main
+- Summary: Basic example: Analyse code with all agents. | Functions: main
 - Why keep:
   - Example usage / demos.
 
@@ -350,7 +350,7 @@ Goal: identify redundancy, dead/placeholder code, and files likely unnecessary. 
   - Large single module (~1202 lines); command handling/UI/utilities are tightly coupled.
 - Recommended changes:
   - Split into smaller modules (e.g. `src/adversarial_debate/cli/commands/*.py`, `src/adversarial_debate/cli/output.py`, `src/adversarial_debate/cli/args.py`) and keep `adversarial_debate.cli:main` stable.
-  - After splitting, run `ruff`, `mypy`, and `pytest` to confirm no behavior drift.
+  - After splitting, run `ruff`, `mypy`, and `pytest` to confirm no behaviour drift.
 
 ### `src/adversarial_debate/completions.py` — **KEEP**
 - Summary: Shell completion scripts for adversarial-debate CLI. | Functions: get_completion_script, print_completion_script, get_install_instructions
@@ -453,7 +453,7 @@ Goal: identify redundancy, dead/placeholder code, and files likely unnecessary. 
   - Implementation lives in `__init__.py` and is very large (~1772 lines); harder to maintain and review.
 - Recommended changes:
   - Move implementation into dedicated modules (e.g. `src/adversarial_debate/sandbox/executor.py`, `validation.py`, `types.py`) and keep `src/adversarial_debate/sandbox/__init__.py` for re-exports.
-  - After splitting, run `ruff`, `mypy`, and `pytest` to confirm no behavior drift.
+  - After splitting, run `ruff`, `mypy`, and `pytest` to confirm no behaviour drift.
 
 ### `src/adversarial_debate/store/__init__.py` — **KEEP**
 - Summary: Bead store for event-sourced coordination.
@@ -542,7 +542,7 @@ Goal: identify redundancy, dead/placeholder code, and files likely unnecessary. 
   - Test coverage / regression protection.
 
 ### `tests/unit/test_agents/test_validation.py` — **KEEP**
-- Summary: Validation tests for agent normalization requirements. | Functions: _make_context, test_exploit_agent_requires_payload, test_break_agent_requires_poc_code, test_chaos_agent_requires_rollback, test_arbiter_flags_unknown_or_missing_ids
+- Summary: Validation tests for agent normalisation requirements. | Functions: _make_context, test_exploit_agent_requires_payload, test_break_agent_requires_poc_code, test_chaos_agent_requires_rollback, test_arbiter_flags_unknown_or_missing_ids
 - Why keep:
   - Test coverage / regression protection.
 
@@ -593,7 +593,7 @@ Goal: identify redundancy, dead/placeholder code, and files likely unnecessary. 
   - Contains a bare `except ImportError: pass` that can hide regressions.
 - Recommended changes:
   - Replace `try/except ImportError: pass` with an explicit assertion (or `pytest.xfail`) so unexpected import failures are visible.
-  - Optionally refactor provider modules/tests to guarantee deterministic behavior when optional dependencies are missing.
+  - Optionally refactor provider modules/tests to guarantee deterministic behaviour when optional dependencies are missing.
 
 ### `tests/unit/test_providers/test_base.py` — **KEEP**
 - Summary: Tests for base provider classes. | Classes: TestMessage, TestProviderConfig, TestLLMResponse, TestStreamChunk, TestModelTier
@@ -616,10 +616,10 @@ Goal: identify redundancy, dead/placeholder code, and files likely unnecessary. 
   - Contains a bare `except ImportError: pass` that can hide regressions.
 - Recommended changes:
   - Replace `try/except ImportError: pass` with an explicit assertion (or `pytest.xfail`) so unexpected import failures are visible.
-  - Optionally refactor provider modules/tests to guarantee deterministic behavior when optional dependencies are missing.
+  - Optionally refactor provider modules/tests to guarantee deterministic behaviour when optional dependencies are missing.
 
 ### `tests/unit/test_results_bundle.py` — **KEEP**
-- Summary: Unit tests for results bundle normalization. | Functions: test_build_results_bundle_normalizes_findings
+- Summary: Unit tests for results bundle normalisation. | Functions: test_build_results_bundle_normalizes_findings
 - Why keep:
   - Test coverage / regression protection.
 

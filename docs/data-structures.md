@@ -92,7 +92,7 @@ class Attack:
 |-------|------|-------------|
 | `id` | `str` | Unique attack identifier (format: `ATK-NNN`) |
 | `agent` | `AgentType` | Which agent should execute (EXPLOIT/BREAK/CHAOS) |
-| `target_file` | `str` | File path to analyze |
+| `target_file` | `str` | File path to analyse |
 | `target_function` | `str | None` | Specific function to focus on |
 | `priority` | `AttackPriority` | Execution priority (CRITICAL/HIGH/MEDIUM/LOW/MINIMAL) |
 | `attack_vectors` | `list[AttackVector]` | Specific attack methods to try |
@@ -116,7 +116,7 @@ class AttackVector:
     description: str
     category: str
     payload_hints: list[str]
-    expected_behavior: str
+    expected_behaviour: str
     success_indicators: list[str]
 ```
 
@@ -126,7 +126,7 @@ class AttackVector:
 | `description` | `str` | Detailed description of the attack |
 | `category` | `str` | Category code (e.g., "A03:2021" for OWASP) |
 | `payload_hints` | `list[str]` | Example payloads to try |
-| `expected_behavior` | `str` | What should happen if vulnerable |
+| `expected_behaviour` | `str` | What should happen if vulnerable |
 | `success_indicators` | `list[str]` | Signs that attack succeeded |
 
 ---
@@ -194,7 +194,7 @@ class FileRiskProfile:
 | `file_path` | `str` | Path to the file |
 | `risk_score` | `int` | Risk score (0-100) |
 | `risk_factors` | `list[str]` | Identified risk factors |
-| `recommended_agents` | `list[AgentType]` | Agents that should analyze this file |
+| `recommended_agents` | `list[AgentType]` | Agents that should analyse this file |
 | `attack_vectors` | `list[str]` | Potential attack vectors |
 | `exposure` | `str` | Exposure level (public/authenticated/internal) |
 | `data_sensitivity` | `str` | Data sensitivity (high/medium/low) |
@@ -272,7 +272,7 @@ class ArbiterVerdict:
 | `summary` | `str` | Executive summary |
 | `key_concerns` | `list[str]` | Top concerns |
 | `recommendations` | `list[str]` | Recommendations |
-| `findings_analyzed` | `int` | Total findings reviewed |
+| `findings_analysed` | `int` | Total findings reviewed |
 | `confidence` | `float` | Confidence in verdict (0.0-1.0) |
 | `assumptions` | `list[str]` | Assumptions made |
 | `limitations` | `list[str]` | Known limitations |
@@ -454,8 +454,8 @@ class Bead:
 
 | Method | Return Type | Description |
 |--------|-------------|-------------|
-| `to_json()` | `str` | Serialize to JSON string |
-| `from_json(json_str)` | `Bead` | Deserialize from JSON (class method) |
+| `to_json()` | `str` | Serialise to JSON string |
+| `from_json(json_str)` | `Bead` | Deserialise from JSON (class method) |
 | `to_dict()` | `dict` | Convert to dictionary |
 | `from_dict(data)` | `Bead` | Create from dictionary (class method) |
 
@@ -779,8 +779,8 @@ The following diagram shows how the main types relate to each other:
     Attack          ParallelGroup   SkipReason
         |
     AttackVector
-        
-        
+
+
                   ArbiterVerdict
                         |
     +-------------------+-------------------+

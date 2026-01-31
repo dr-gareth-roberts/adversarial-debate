@@ -7,4 +7,4 @@ Targets for the demo:
 - SQL injection in `get_user`.
 - Command injection in `run_report`.
 - SSRF risk in `fetch_profile`.
-- Insecure deserialization in `load_session`.
+- Insecure deserialisation in `load_session`.

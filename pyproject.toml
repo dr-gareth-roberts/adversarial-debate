@@ -61,9 +61,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/dr-gareth-roberts/adverserial-debate"
-Repository = "https://github.com/dr-gareth-roberts/adverserial-debate"
-Issues = "https://github.com/dr-gareth-roberts/adverserial-debate/issues"
+Homepage = "https://github.com/dr-gareth-roberts/adversarial-debate"
+Repository = "https://github.com/dr-gareth-roberts/adversarial-debate"
+Issues = "https://github.com/dr-gareth-roberts/adversarial-debate/issues"
 
 [project.scripts]
 adversarial-debate = "adversarial_debate.cli:main"

@@ -11,7 +11,7 @@ This document provides a step-by-step walkthrough of how the Adversarial Debate 
 - [Stage 4: Verdict Rendering](#stage-4-verdict-rendering)
 - [Stage 5: Output Generation](#stage-5-output-generation)
 - [Error Handling](#error-handling)
-- [Performance Optimization](#performance-optimization)
+- [Performance Optimisation](#performance-optimisation)
 
 ---
 
@@ -62,7 +62,7 @@ handles input collection (and is re-exported from `adversarial_debate.cli` for c
 ```python
 async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     target_path = Path(args.target)
-    
+
     # Collect files based on target type
     if target_path.is_file():
         code = target_path.read_text()
@@ -81,7 +81,7 @@ The collected inputs are structured as:
 
 | Field | Type | Source | Description |
 |-------|------|--------|-------------|
-| `changed_files` | `list[dict]` | File system scan | Files to analyze with metadata |
+| `changed_files` | `list[dict]` | File system scan | Files to analyse with metadata |
 | `patches` | `dict[str, str]` | File content | File path to content/diff mapping |
 | `code` | `str` | Concatenated files | All code combined for context |
 | `files` | `list[str]` | File paths | List of all file paths |
@@ -114,7 +114,7 @@ if not files:
     return 1
 
 if not code.strip():
-    print_error("No code found to analyze")
+    print_error("No code found to analyse")
     return 1
 ```
 
@@ -122,9 +122,9 @@ if not code.strip():
 
 ## Stage 2: Attack Planning
 
-The ChaosOrchestrator analyzes the inputs and creates a coordinated attack plan.
+The ChaosOrchestrator analyses the inputs and creates a coordinated attack plan.
 
-### Orchestrator Initialization
+### Orchestrator Initialisation
 
 ```python
 from adversarial_debate.agents import ChaosOrchestrator
@@ -290,7 +290,7 @@ Time -->
 
 ### Collecting Findings
 
-The CLI normalizes outputs into a single list:
+The CLI normalises outputs into a single list:
 
 ```python
 combined_findings = []
@@ -364,7 +364,7 @@ and the canonical results bundle.
 
 The Arbiter reviews all findings and renders a final verdict.
 
-### Arbiter Initialization
+### Arbiter Initialisation
 
 ```python
 from adversarial_debate.agents import Arbiter
@@ -474,7 +474,7 @@ output/
 
 ### Writing Outputs
 
-The CLI writes these artifacts directly during `cmd_run`. See `src/adversarial_debate/cli_commands.py` for the
+The CLI writes these artefacts directly during `cmd_run`. See `src/adversarial_debate/cli_commands.py` for the
 exact implementation and flags (`--output`, `--bundle-file`, `--report-file`, `--format`,
 `--skip-debate`, `--skip-verdict`).
 
@@ -580,23 +580,23 @@ If some agents fail, the pipeline continues with available results:
 def filter_successful_outputs(outputs: list[AgentOutput]) -> list[AgentOutput]:
     successful = []
     failed = []
-    
+
     for output in outputs:
         if output.errors:
             failed.append(output)
             logger.warning(f"{output.agent_name} had errors: {output.errors}")
         else:
             successful.append(output)
-    
+
     if not successful:
         raise PipelineError("All agents failed")
-    
+
     return successful
 ```
 
 ---
 
-## Performance Optimization
+## Performance Optimisation
 
 ### Parallel Execution Benefits
 
@@ -680,7 +680,7 @@ async def run_pipeline(target_path: str, output_dir: str) -> int:
     # Load config from env (or Config.from_file(...))
     config = Config.from_env()
 
-    # Initialize provider + bead store
+    # Initialise provider + bead store
     provider = get_provider(
         config.provider.provider,
         RuntimeProviderConfig(
@@ -721,7 +721,7 @@ async def run_pipeline(target_path: str, output_dir: str) -> int:
     )
     plan_output = await orchestrator.run(plan_context)
 
-    # Stage 2: Run the three core agents in parallel (current CLI behavior)
+    # Stage 2: Run the three core agents in parallel (current CLI behaviour)
     exploit = ExploitAgent(provider, bead_store)
     breaker = BreakAgent(provider, bead_store)
     chaos = ChaosAgent(provider, bead_store)

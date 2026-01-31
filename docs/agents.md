@@ -1,6 +1,6 @@
 # Agent System Documentation
 
-This document provides a comprehensive guide to the agent system in Adversarial Debate, explaining how each specialized agent works, what it analyzes, and how agents coordinate to produce security assessments.
+This document provides a comprehensive guide to the agent system in Adversarial Debate, explaining how each specialised agent works, what it analyses, and how agents coordinate to produce security assessments.
 
 ## Table of Contents
 
@@ -18,40 +18,41 @@ This document provides a comprehensive guide to the agent system in Adversarial 
 
 ## Agent Architecture Overview
 
-The agent system follows a hierarchical structure where the ChaosOrchestrator acts as the strategic planner, four specialized "red team" agents perform targeted analysis, and the Arbiter consolidates findings into actionable verdicts.
+The agent system follows a hierarchical structure where the ChaosOrchestrator acts as the strategic planner, four specialised "red team" agents perform targeted analysis, and the Arbiter consolidates findings into actionable verdicts.
 
-```
-                    +---------------------+
-                    |  ChaosOrchestrator  |
-                    |   (Strategic Plan)  |
-                    +----------+----------+
-                               |
-                               | AttackPlan
-                               |
-          +---------------------+---------------------+---------------------+
-          |                     |                     |                     |
-          v                     v                     v                     v
- +----------------+    +----------------+    +----------------+    +----------------+
- |  ExploitAgent  |    |   BreakAgent   |    |   ChaosAgent   |    |  CryptoAgent   |
- |   (Security)   |    |    (Logic)     |    |  (Resilience)  |    |   (Crypto)     |
- +-------+--------+    +-------+--------+    +-------+--------+    +-------+--------+
-         |                     |                     |                     |
-         |   Findings          |   Findings          |   Experiments        |   Findings
-         |                     |                     |                     |
-         +---------------------+---------------------+---------------------+
-                               |
-                               v
-                     +---------------------+
-                     |      Arbiter        |
-                     |  (Verdict & Tasks)  |
-                     +---------------------+
+```mermaid
+flowchart TB
+    subgraph Planning
+        CO[ChaosOrchestrator<br/>Strategic Plan]
+    end
+
+    subgraph RedTeam [Red Team Agents - Parallel]
+        EA[ExploitAgent<br/>Security]
+        BA[BreakAgent<br/>Logic]
+        CA[ChaosAgent<br/>Resilience]
+        CRA[CryptoAgent<br/>Crypto]
+    end
+
+    subgraph Judgment
+        ARB[Arbiter<br/>Verdict & Tasks]
+    end
+
+    CO -->|AttackPlan| EA
+    CO -->|AttackPlan| BA
+    CO -->|AttackPlan| CA
+    CO -->|AttackPlan| CRA
+
+    EA -->|Findings| ARB
+    BA -->|Findings| ARB
+    CA -->|Experiments| ARB
+    CRA -->|Findings| ARB
 ```
 
-### Agent Specializations
+### Agent Specialisations
 
 | Agent | Domain | Focus Areas | Model Tier |
 |-------|--------|-------------|------------|
-| **ChaosOrchestrator** | Planning | Risk assessment, agent assignment, parallelization | HOSTED_SMALL |
+| **ChaosOrchestrator** | Planning | Risk assessment, agent assignment, parallelisation | HOSTED_SMALL |
 | **ExploitAgent** | Security | OWASP Top 10, CVEs, exploit payloads | HOSTED_LARGE |
 | **BreakAgent** | Correctness | Logic bugs, edge cases, race conditions | HOSTED_LARGE |
 | **ChaosAgent** | Resilience | Failure modes, chaos experiments | HOSTED_SMALL |
@@ -81,10 +82,9 @@ class Agent(ABC):
         ...
 
     @property
-    @abstractmethod
     def model_tier(self) -> ModelTier:
-        """Required model capability tier."""
-        ...
+        """Model capability tier. Defaults to HOSTED_SMALL if not overridden."""
+        return ModelTier.HOSTED_SMALL
 ```
 
 ### Required Methods
@@ -102,10 +102,11 @@ class Agent(ABC):
         ...
 
     @abstractmethod
-    def _parse_response(self, response: str, context: AgentContext) -> dict[str, Any]:
+    def _parse_response(self, response: str, context: AgentContext) -> AgentOutput:
         """Parse LLM response into structured output.
 
-        Validates JSON structure and normalizes findings.
+        Validates JSON structure, normalises findings, creates beads,
+        and returns a complete AgentOutput.
         """
         ...
 ```
@@ -129,36 +130,26 @@ async def run(self, context: AgentContext) -> AgentOutput:
         json_mode=True
     )
 
-    # 4. Parse response into structured output
-    result = self._parse_response(response.content, context)
+    # 4. Parse response into AgentOutput (includes bead creation)
+    output = self._parse_response(response.content, context)
 
-    # 5. Create bead for audit trail
-    bead = self._create_bead(context, result)
+    # 5. Append beads to ledger
+    if output.beads_out:
+        self.bead_store.append_many(output.beads_out)
 
-    # 6. Append to ledger
-    self.bead_store.append(bead)
-
-    # 7. Return standardized output
-    return AgentOutput(
-        agent_name=self.name,
-        result=result,
-        beads_out=[bead],
-        confidence=result.get("confidence", 0.5),
-        assumptions=result.get("assumptions", []),
-        unknowns=result.get("unknowns", []),
-        errors=[]
-    )
+    # 6. Return standardised output
+    return output
 ```
 
 ---
 
 ## ChaosOrchestrator
 
-The ChaosOrchestrator is the strategic brain of the system. It analyzes code changes, assesses risk, and creates a coordinated attack plan that assigns work to specialized agents.
+The ChaosOrchestrator is the strategic brain of the system. It analyses code changes, assesses risk, and creates a coordinated attack plan that assigns work to specialised agents.
 
 ### Purpose
 
-The orchestrator's job is to answer: "Given these code changes, what should we test, who should test it, and in what order?" It performs risk-based prioritization to focus testing effort where it matters most.
+The orchestrator's job is to answer: "Given these code changes, what should we test, who should test it, and in what order?" It performs risk-based prioritisation to focus testing effort where it matters most.
 
 ### Input Context
 
@@ -308,14 +299,14 @@ The ExploitAgent answers: "Can an attacker exploit this code to compromise secur
 
 | Category | Code | Description | Detection Focus |
 |----------|------|-------------|-----------------|
-| **A01:2021** | Broken Access Control | Unauthorized access to resources | Missing auth checks, IDOR |
+| **A01:2021** | Broken Access Control | Unauthorised access to resources | Missing auth checks, IDOR |
 | **A02:2021** | Cryptographic Failures | Weak or missing encryption | Hardcoded secrets, weak algorithms |
-| **A03:2021** | Injection | SQL, NoSQL, OS, LDAP injection | Unsanitized input in queries |
+| **A03:2021** | Injection | SQL, NoSQL, OS, LDAP injection | Unsanitised input in queries |
 | **A04:2021** | Insecure Design | Flawed architecture | Missing security controls |
 | **A05:2021** | Security Misconfiguration | Improper settings | Debug enabled, default creds |
 | **A06:2021** | Vulnerable Components | Outdated dependencies | Known CVEs in imports |
 | **A07:2021** | Auth Failures | Broken authentication | Weak passwords, session issues |
-| **A08:2021** | Data Integrity Failures | Untrusted data | Deserialization, unsigned updates |
+| **A08:2021** | Data Integrity Failures | Untrusted data | Deserialisation, unsigned updates |
 | **A09:2021** | Logging Failures | Insufficient monitoring | Missing audit logs |
 | **A10:2021** | SSRF | Server-side request forgery | Unvalidated URLs |
 
@@ -323,7 +314,7 @@ The ExploitAgent answers: "Can an attacker exploit this code to compromise secur
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `code` | `str` | Target code to analyze |
+| `code` | `str` | Target code to analyse |
 | `file_path` | `str` | Path to the file |
 | `file_paths` | `list[str]` | All files in scope |
 | `focus_areas` | `list[str]` | Specific areas to focus on |
@@ -395,7 +386,7 @@ USER MESSAGE:
 
 ## BreakAgent
 
-The BreakAgent specializes in finding logic bugs, edge cases, and correctness issues that could cause unexpected behavior or data corruption.
+The BreakAgent specialises in finding logic bugs, edge cases, and correctness issues that could cause unexpected behaviour or data corruption.
 
 ### Purpose
 
@@ -430,7 +421,7 @@ The BreakAgent employs five categories of attacks:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `code` | `str` | Target code to analyze |
+| `code` | `str` | Target code to analyse |
 | `file_path` | `str` | Path to the file |
 | `attack_hints` | `list[dict]` | Hints from orchestrator |
 | `focus_areas` | `list[str]` | Specific areas to probe |
@@ -455,8 +446,8 @@ Each finding includes:
     },
     "trigger_condition": "deposit_amount > MAX_INT - current_balance",
     "proof_of_concept": "add_funds(account, 2147483647)",
-    "expected_behavior": "Reject deposit or use larger integer type",
-    "actual_behavior": "Balance becomes negative, allowing unlimited withdrawals",
+    "expected_behaviour": "Reject deposit or use larger integer type",
+    "actual_behaviour": "Balance becomes negative, allowing unlimited withdrawals",
     "impact": "Financial loss, data corruption",
     "remediation": "Use checked arithmetic or BigInt",
     "confidence": 0.88
@@ -548,7 +539,7 @@ The ChaosAgent answers: "How does this code behave when things go wrong?" It des
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `code` | `str` | Target code to analyze |
+| `code` | `str` | Target code to analyse |
 | `file_path` | `str` | Path to the file |
 | `infrastructure_context` | `dict` | Dependencies, deployment info |
 | `focus_areas` | `list[str]` | Specific failure modes to test |
@@ -562,7 +553,7 @@ Each experiment includes:
     "experiment_id": "CHAOS-001",
     "title": "Database connection pool exhaustion",
     "category": "RESOURCE",
-    "description": "Test behavior when all DB connections are in use",
+    "description": "Test behaviour when all DB connections are in use",
     "hypothesis": "System should queue requests and return 503 after timeout",
     "target_component": "src/db/connection_pool.py",
     "injection_point": "ConnectionPool.acquire()",
@@ -573,12 +564,12 @@ Each experiment includes:
             "probability": 1.0
         }
     },
-    "expected_behavior": {
+    "expected_behaviour": {
         "graceful_degradation": true,
         "error_handling": "Return 503 Service Unavailable",
         "recovery": "Automatic when connections freed"
     },
-    "actual_behavior_unknown": true,
+    "actual_behaviour_unknown": true,
     "blast_radius": "All database operations",
     "rollback_procedure": "Remove delay injection",
     "safety_checks": [
@@ -635,7 +626,7 @@ USER MESSAGE:
 
 ## CryptoAgent
 
-The CryptoAgent specializes in cryptography and auth-adjacent weaknesses.
+The CryptoAgent specialises in cryptography and auth-adjacent weaknesses.
 
 ### Purpose
 
@@ -645,7 +636,7 @@ The CryptoAgent answers: "Are there exploitable crypto or token/auth implementat
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `code` | `str` | Target code to analyze |
+| `code` | `str` | Target code to analyse |
 | `file_path` | `str` | Path to the file |
 | `function_name` | `str` | Function/class name (optional) |
 | `attack_hints` | `list[str]` | Orchestrator hints (optional) |
@@ -803,21 +794,29 @@ USER MESSAGE:
 
 Some analyses must complete before others can begin:
 
-```
-ChaosOrchestrator
-        |
-        | (must complete first to create plan)
-        v
- [ExploitAgent, BreakAgent, ChaosAgent, CryptoAgent]  <- parallel
-        |
-        | (must complete to have findings)
-        v
-    Arbiter
+```mermaid
+flowchart TD
+    CO[ChaosOrchestrator] -->|AttackPlan| P1[ExploitAgent]
+    CO -->|AttackPlan| P2[BreakAgent]
+    CO -->|AttackPlan| P3[ChaosAgent]
+    CO -->|AttackPlan| P4[CryptoAgent]
+    P1 -->|Findings| ARB[Arbiter]
+    P2 -->|Findings| ARB
+    P3 -->|Experiments| ARB
+    P4 -->|Findings| ARB
+    ARB -->|Verdict| OUT((BLOCK/WARN/PASS))
+
+    subgraph parallel [Parallel Execution]
+        P1
+        P2
+        P3
+        P4
+    end
 ```
 
 ### Parallel Execution
 
-Red team agents run concurrently when analyzing independent targets:
+Red team agents run concurrently when analysing independent targets:
 
 ```python
 async def run_red_team(attack_plan: AttackPlan) -> list[AgentOutput]:
@@ -834,19 +833,32 @@ async def run_red_team(attack_plan: AttackPlan) -> list[AgentOutput]:
 
 Agents share context through the bead ledger:
 
-```
-ChaosOrchestrator
-    |
-    +-- writes ATTACK_PLAN bead
-            |
-            +-- ExploitAgent reads for attack hints
-            +-- BreakAgent reads for focus areas
-            +-- ChaosAgent reads for infrastructure context
-            +-- CryptoAgent reads for crypto/auth-adjacent hints
-            |
-            +-- All write analysis beads
-                    |
-                    +-- Arbiter reads all for verdict
+```mermaid
+sequenceDiagram
+    participant CO as ChaosOrchestrator
+    participant L as BeadLedger
+    participant EA as ExploitAgent
+    participant BA as BreakAgent
+    participant CA as ChaosAgent
+    participant CRA as CryptoAgent
+    participant ARB as Arbiter
+
+    CO->>L: Write ATTACK_PLAN bead
+    par Red Team Analysis
+        EA->>L: Read attack hints
+        EA->>L: Write EXPLOIT_ANALYSIS bead
+    and
+        BA->>L: Read focus areas
+        BA->>L: Write BREAK_ANALYSIS bead
+    and
+        CA->>L: Read infrastructure context
+        CA->>L: Write CHAOS_ANALYSIS bead
+    and
+        CRA->>L: Read crypto hints
+        CRA->>L: Write CRYPTO_ANALYSIS bead
+    end
+    ARB->>L: Read all analysis beads
+    ARB->>L: Write ARBITER_VERDICT bead
 ```
 
 ### Error Handling

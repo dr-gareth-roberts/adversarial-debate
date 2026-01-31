@@ -11,6 +11,7 @@ from adversarial_debate.cli import (
     print_error,
     print_json,
 )
+from adversarial_debate.cli_commands import _read_text_safe
 from adversarial_debate.config import Config
 
 
@@ -164,6 +165,18 @@ class TestPrintFunctions:
         captured = capsys.readouterr()
         assert "Error: Something went wrong" in captured.err
 
+
+class TestReadTextSafe:
+    """Tests for safe file reading."""
+
+    def test_read_text_safe_non_utf8(self, tmp_path):
+        """Non-UTF8 content should be replaced, not crash."""
+        test_file = tmp_path / "binary.py"
+        test_file.write_bytes(b"print('ok')\n\xff\xfe\xfa")
+
+        text = _read_text_safe(test_file)
+        expected = test_file.read_bytes().decode("utf-8", errors="replace")
+        assert text == expected
 
 class TestAnalyzeCommand:
     """Tests for the analyze command."""
