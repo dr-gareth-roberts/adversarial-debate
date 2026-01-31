@@ -178,6 +178,7 @@ class TestReadTextSafe:
         expected = test_file.read_bytes().decode("utf-8", errors="replace")
         assert text == expected
 
+
 class TestAnalyzeCommand:
     """Tests for the analyze command."""
 
