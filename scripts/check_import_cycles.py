@@ -107,19 +107,38 @@ def _build_graph(modules: list[Module]) -> dict[str, set[str]]:
                             graph[m.name].add(".".join(parts))
             elif isinstance(node, ast.ImportFrom):
                 if node.level:
-                    resolved = _resolve_relative_import(
-                        current_module=m.name,
-                        level=node.level,
-                        module=node.module,
-                    )
-                    if resolved and resolved in known:
-                        graph[m.name].add(resolved)
-                    elif resolved and resolved.startswith("adversarial_debate."):
-                        parts = resolved.split(".")
-                        while parts and ".".join(parts) not in known:
-                            parts.pop()
-                        if parts:
-                            graph[m.name].add(".".join(parts))
+                    # Handle both:
+                    # - from .foo import bar  (node.module == 'foo')
+                    # - from . import foo     (node.module is None; alias names hold candidates)
+                    if node.module is None:
+                        for alias in node.names:
+                            candidate = _resolve_relative_import(
+                                current_module=m.name,
+                                level=node.level,
+                                module=alias.name,
+                            )
+                            if candidate and candidate in known:
+                                graph[m.name].add(candidate)
+                            elif candidate and candidate.startswith("adversarial_debate."):
+                                parts = candidate.split(".")
+                                while parts and ".".join(parts) not in known:
+                                    parts.pop()
+                                if parts:
+                                    graph[m.name].add(".".join(parts))
+                    else:
+                        resolved = _resolve_relative_import(
+                            current_module=m.name,
+                            level=node.level,
+                            module=node.module,
+                        )
+                        if resolved and resolved in known:
+                            graph[m.name].add(resolved)
+                        elif resolved and resolved.startswith("adversarial_debate."):
+                            parts = resolved.split(".")
+                            while parts and ".".join(parts) not in known:
+                                parts.pop()
+                            if parts:
+                                graph[m.name].add(".".join(parts))
                 else:
                     if not node.module:
                         continue
