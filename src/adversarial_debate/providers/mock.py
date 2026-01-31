@@ -196,8 +196,7 @@ class MockProvider(LLMProvider):
                     },
                     "attack": {
                         "description": (
-                            "Attacker can predict tokens with enough samples/state "
-                            "leakage."
+                            "Attacker can predict tokens with enough samples/state leakage."
                         ),
                         "prerequisites": ["Attacker can obtain multiple tokens"],
                         "impact": "Session/token forgery and account takeover.",

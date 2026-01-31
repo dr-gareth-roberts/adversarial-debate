@@ -10,6 +10,7 @@ This document provides a comprehensive guide to the agent system in Adversarial 
 - [ExploitAgent](#exploitagent)
 - [BreakAgent](#breakagent)
 - [ChaosAgent](#chaosagent)
+- [CryptoAgent](#cryptoagent)
 - [Arbiter](#arbiter)
 - [Agent Coordination Patterns](#agent-coordination-patterns)
 
@@ -17,7 +18,7 @@ This document provides a comprehensive guide to the agent system in Adversarial 
 
 ## Agent Architecture Overview
 
-The agent system follows a hierarchical structure where the ChaosOrchestrator acts as the strategic planner, three specialized "red team" agents perform targeted analysis, and the Arbiter consolidates findings into actionable verdicts.
+The agent system follows a hierarchical structure where the ChaosOrchestrator acts as the strategic planner, four specialized "red team" agents perform targeted analysis, and the Arbiter consolidates findings into actionable verdicts.
 
 ```
                     +---------------------+
@@ -27,23 +28,23 @@ The agent system follows a hierarchical structure where the ChaosOrchestrator ac
                                |
                                | AttackPlan
                                |
-         +---------------------+---------------------+
-         |                     |                     |
-         v                     v                     v
-+----------------+    +----------------+    +----------------+
-|  ExploitAgent  |    |   BreakAgent   |    |   ChaosAgent   |
-|   (Security)   |    |    (Logic)     |    |  (Resilience)  |
-+-------+--------+    +-------+--------+    +-------+--------+
-        |                     |                     |
-        |   Findings          |   Findings          |   Experiments
-        |                     |                     |
-        +---------------------+---------------------+
-                              |
-                              v
-                    +---------------------+
-                    |      Arbiter        |
-                    |  (Verdict & Tasks)  |
-                    +---------------------+
+          +---------------------+---------------------+---------------------+
+          |                     |                     |                     |
+          v                     v                     v                     v
+ +----------------+    +----------------+    +----------------+    +----------------+
+ |  ExploitAgent  |    |   BreakAgent   |    |   ChaosAgent   |    |  CryptoAgent   |
+ |   (Security)   |    |    (Logic)     |    |  (Resilience)  |    |   (Crypto)     |
+ +-------+--------+    +-------+--------+    +-------+--------+    +-------+--------+
+         |                     |                     |                     |
+         |   Findings          |   Findings          |   Experiments        |   Findings
+         |                     |                     |                     |
+         +---------------------+---------------------+---------------------+
+                               |
+                               v
+                     +---------------------+
+                     |      Arbiter        |
+                     |  (Verdict & Tasks)  |
+                     +---------------------+
 ```
 
 ### Agent Specializations
@@ -54,6 +55,7 @@ The agent system follows a hierarchical structure where the ChaosOrchestrator ac
 | **ExploitAgent** | Security | OWASP Top 10, CVEs, exploit payloads | HOSTED_LARGE |
 | **BreakAgent** | Correctness | Logic bugs, edge cases, race conditions | HOSTED_LARGE |
 | **ChaosAgent** | Resilience | Failure modes, chaos experiments | HOSTED_SMALL |
+| **CryptoAgent** | Crypto | Tokens/JWT, key management, weak algorithms, randomness | HOSTED_LARGE |
 | **Arbiter** | Judgment | Validation, severity calibration, remediation | HOSTED_LARGE |
 
 ---
@@ -71,13 +73,13 @@ class Agent(ABC):
     def name(self) -> str:
         """Human-readable agent name (e.g., 'ExploitAgent')."""
         ...
-    
+
     @property
     @abstractmethod
     def bead_type(self) -> BeadType:
         """Type of bead this agent produces."""
         ...
-    
+
     @property
     @abstractmethod
     def model_tier(self) -> ModelTier:
@@ -92,17 +94,17 @@ class Agent(ABC):
     @abstractmethod
     def _build_prompt(self, context: AgentContext) -> list[Message]:
         """Construct the LLM prompt from context.
-        
+
         Returns a list of Message objects, typically:
         1. System message defining role and output format
         2. User message with task details and code
         """
         ...
-    
+
     @abstractmethod
     def _parse_response(self, response: str, context: AgentContext) -> dict[str, Any]:
         """Parse LLM response into structured output.
-        
+
         Validates JSON structure and normalizes findings.
         """
         ...
@@ -116,26 +118,26 @@ The `run()` method orchestrates the agent lifecycle:
 async def run(self, context: AgentContext) -> AgentOutput:
     # 1. Build prompt from context
     messages = self._build_prompt(context)
-    
+
     # 2. Get model for this agent's tier
     model = self.provider.get_model_for_tier(self.model_tier)
-    
+
     # 3. Call LLM with JSON mode
     response = await self.provider.complete(
         messages,
         model=model,
         json_mode=True
     )
-    
+
     # 4. Parse response into structured output
     result = self._parse_response(response.content, context)
-    
+
     # 5. Create bead for audit trail
     bead = self._create_bead(context, result)
-    
+
     # 6. Append to ledger
     self.bead_store.append(bead)
-    
+
     # 7. Return standardized output
     return AgentOutput(
         agent_name=self.name,
@@ -228,6 +230,9 @@ File Analysis -> Agent Assignment:
 | External API calls     | ChaosAgent       | Dependency failure handling    |
 | Database connections   | ChaosAgent       | Connection pool exhaustion     |
 | File I/O operations    | ChaosAgent       | Resource exhaustion            |
+| Token/JWT handling     | CryptoAgent      | Weak algorithms, key management |
+| Key management         | CryptoAgent      | Hardcoded secrets, weak keys    |
+| Randomness usage       | CryptoAgent      | Predictable randomness         |
 +------------------------+------------------+--------------------------------+
 ```
 
@@ -628,6 +633,32 @@ USER MESSAGE:
 
 ---
 
+## CryptoAgent
+
+The CryptoAgent specializes in cryptography and auth-adjacent weaknesses.
+
+### Purpose
+
+The CryptoAgent answers: "Are there exploitable crypto or token/auth implementation problems here?" It focuses on concrete risks such as weak algorithms, hardcoded secrets, predictable randomness, and unsafe token/JWT handling.
+
+### Input Context
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `code` | `str` | Target code to analyze |
+| `file_path` | `str` | Path to the file |
+| `function_name` | `str` | Function/class name (optional) |
+| `attack_hints` | `list[str]` | Orchestrator hints (optional) |
+| `payload_hints` | `list[str]` | Candidate payload/approach hints (optional) |
+| `success_indicators` | `list[str]` | What proves exploitability (optional) |
+| `hints` | `list[str]` | Code-level hints (optional) |
+
+### Output: Crypto Findings
+
+CryptoAgent emits findings with concrete evidence snippets and actionable remediation guidance.
+
+---
+
 ## Arbiter
 
 The Arbiter is the final judge that reviews all findings, validates their exploitability, and renders a verdict.
@@ -777,7 +808,7 @@ ChaosOrchestrator
         |
         | (must complete first to create plan)
         v
-[ExploitAgent, BreakAgent, ChaosAgent]  <- parallel
+ [ExploitAgent, BreakAgent, ChaosAgent, CryptoAgent]  <- parallel
         |
         | (must complete to have findings)
         v
@@ -795,7 +826,7 @@ async def run_red_team(attack_plan: AttackPlan) -> list[AgentOutput]:
         agent = get_agent_for_type(attack.agent)
         context = create_context_for_attack(attack)
         tasks.append(agent.run(context))
-    
+
     return await asyncio.gather(*tasks)
 ```
 
@@ -811,6 +842,7 @@ ChaosOrchestrator
             +-- ExploitAgent reads for attack hints
             +-- BreakAgent reads for focus areas
             +-- ChaosAgent reads for infrastructure context
+            +-- CryptoAgent reads for crypto/auth-adjacent hints
             |
             +-- All write analysis beads
                     |

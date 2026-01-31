@@ -18,7 +18,7 @@ We take security vulnerabilities seriously. If you discover a security issue, pl
 
 Instead, please report security vulnerabilities by emailing:
 
-**Use [GitHub's private vulnerability reporting](https://github.com/dr-gareth-roberts/adversarial-debate/security/advisories/new)**
+**Use [GitHub's private vulnerability reporting](https://github.com/dr-gareth-roberts/adverserial-debate/security/advisories/new)**
 
 This is the preferred method. The form will guide you through the process.
 

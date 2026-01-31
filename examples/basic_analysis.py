@@ -9,7 +9,7 @@ This example demonstrates how to:
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from adversarial_debate import (
     AgentContext,
@@ -87,7 +87,7 @@ async def main() -> None:
     arbiter = Arbiter(provider, store)
 
     # Build analysis context
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
     context = AgentContext(
         run_id="example-001",
         timestamp_iso=timestamp,

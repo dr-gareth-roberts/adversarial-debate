@@ -7,8 +7,8 @@
 **Find security vulnerabilities before attackers do.**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![CI](https://github.com/dr-gareth-roberts/adversarial-debate/actions/workflows/ci.yml/badge.svg)](https://github.com/dr-gareth-roberts/adversarial-debate/actions/workflows/ci.yml)
-[![Codecov](https://codecov.io/gh/dr-gareth-roberts/adversarial-debate/branch/main/graph/badge.svg)](https://codecov.io/gh/dr-gareth-roberts/adversarial-debate)
+[![CI](https://github.com/dr-gareth-roberts/adverserial-debate/actions/workflows/ci.yml/badge.svg)](https://github.com/dr-gareth-roberts/adverserial-debate/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/dr-gareth-roberts/adverserial-debate/branch/main/graph/badge.svg)](https://codecov.io/gh/dr-gareth-roberts/adverserial-debate)
 [![PyPI](https://img.shields.io/pypi/v/adversarial-debate.svg)](https://pypi.org/project/adversarial-debate/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
@@ -36,8 +36,8 @@ Think of it as having a team of security experts—each with different specializ
                     │    (Attack Strategy & Planning)     │
                     └─────────────────┬───────────────────┘
                                       │
-            ┌─────────────────────────┼─────────────────────────┐
-            │                         │                         │
+            ┌─────────────────────────────────────────────────────────┐
+            │                                                         │
             ▼                         ▼                         ▼
    ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
    │  ExploitAgent   │     │   BreakAgent    │     │   ChaosAgent    │
@@ -48,6 +48,17 @@ Think of it as having a team of security experts—each with different specializ
    └────────┬────────┘     └────────┬────────┘     └────────┬────────┘
             │                       │                       │
             └───────────────────────┼───────────────────────┘
+                                    │
+                                    ▼
+                           ┌─────────────────┐
+                           │   CryptoAgent   │
+                           │                 │
+                           │  Weak Crypto    │
+                           │  JWT/Token Bugs │
+                           │  Key Handling   │
+                           └────────┬────────┘
+                                    │
+            ┌───────────────────────┼───────────────────────┐
                                     │
                                     ▼
                     ┌─────────────────────────────────────┐
@@ -131,8 +142,8 @@ uv add adversarial-debate
 pip install adversarial-debate
 
 # From source
-git clone https://github.com/dr-gareth-roberts/adversarial-debate.git
-cd adversarial-debate
+git clone https://github.com/dr-gareth-roberts/adverserial-debate.git
+cd adverserial-debate
 uv sync --extra dev
 ```
 
@@ -214,7 +225,7 @@ Findings: 2
 ```
 
 The pipeline run writes `attack_plan.json`, `exploit_findings.json`, `break_findings.json`,
-`chaos_findings.json`, `findings.json`, `verdict.json` (unless `--skip-verdict`), and the canonical
+`chaos_findings.json`, `crypto_findings.json`, `findings.json`, `verdict.json` (unless `--skip-verdict`), and the canonical
 `bundle.json` (override with `--bundle-file`). If cross-examination produces debated findings, they
 are written to `findings.debated.json`.
 
@@ -408,8 +419,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-[Report Bug](https://github.com/dr-gareth-roberts/adversarial-debate/issues/new?template=bug_report.yml) •
-[Request Feature](https://github.com/dr-gareth-roberts/adversarial-debate/issues/new?template=feature_request.yml) •
-[Ask Question](https://github.com/dr-gareth-roberts/adversarial-debate/discussions)
+[Report Bug](https://github.com/dr-gareth-roberts/adverserial-debate/issues/new?template=bug_report.yml) •
+[Request Feature](https://github.com/dr-gareth-roberts/adverserial-debate/issues/new?template=feature_request.yml) •
+[Ask Question](https://github.com/dr-gareth-roberts/adverserial-debate/discussions)
 
 </div>

@@ -12,7 +12,7 @@ import asyncio
 import json
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from adversarial_debate import (
@@ -22,6 +22,7 @@ from adversarial_debate import (
     BeadStore,
     BreakAgent,
     ChaosAgent,
+    CryptoAgent,
     ExploitAgent,
 )
 
@@ -72,6 +73,7 @@ async def analyze_files(
     exploit_agent = ExploitAgent(provider, store)
     break_agent = BreakAgent(provider, store)
     chaos_agent = ChaosAgent(provider, store)
+    crypto_agent = CryptoAgent(provider, store)
     arbiter = Arbiter(provider, store)
 
     all_findings = []
@@ -80,7 +82,7 @@ async def analyze_files(
         print(f"Analyzing: {file_path}")
 
         code = file_path.read_text()
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
 
         context = AgentContext(
             run_id=f"ci-{file_path.name}",
@@ -101,6 +103,7 @@ async def analyze_files(
             exploit_agent.run(context),
             break_agent.run(context),
             chaos_agent.run(context),
+            crypto_agent.run(context),
         )
 
         # Consolidate findings
@@ -115,6 +118,7 @@ async def analyze_files(
                     "exploit": results[0].result,
                     "break": results[1].result,
                     "chaos": results[2].result,
+                    "crypto": results[3].result,
                 }
             },
         )
@@ -133,8 +137,7 @@ async def analyze_files(
     fail_threshold = severity_levels.index(fail_on) if fail_on in severity_levels else 1
 
     should_fail = any(
-        severity_levels.index(f.get("severity", "info")) <= fail_threshold
-        for f in all_findings
+        severity_levels.index(f.get("severity", "info")) <= fail_threshold for f in all_findings
     )
 
     return all_findings, should_fail
@@ -211,36 +214,40 @@ def generate_sarif_report(findings: list[dict]) -> dict:
             "info": "note",
         }
 
-        rules.append({
-            "id": rule_id,
-            "name": finding.get("title", "Security Issue"),
-            "shortDescription": {"text": finding.get("title", "")},
-            "fullDescription": {"text": finding.get("description", "")},
-            "help": {"text": finding.get("remediation", "")},
-            "properties": {
-                "severity": severity,
-                "confidence": finding.get("confidence", 0),
-            },
-        })
+        rules.append(
+            {
+                "id": rule_id,
+                "name": finding.get("title", "Security Issue"),
+                "shortDescription": {"text": finding.get("title", "")},
+                "fullDescription": {"text": finding.get("description", "")},
+                "help": {"text": finding.get("remediation", "")},
+                "properties": {
+                    "severity": severity,
+                    "confidence": finding.get("confidence", 0),
+                },
+            }
+        )
 
         location = finding.get("location", {})
-        results.append({
-            "ruleId": rule_id,
-            "level": level_map.get(severity, "warning"),
-            "message": {"text": finding.get("description", "Security issue found")},
-            "locations": [
-                {
-                    "physicalLocation": {
-                        "artifactLocation": {
-                            "uri": finding.get("file", "unknown"),
+        results.append(
+            {
+                "ruleId": rule_id,
+                "level": level_map.get(severity, "warning"),
+                "message": {"text": finding.get("description", "Security issue found")},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {
+                                "uri": finding.get("file", "unknown"),
+                            },
+                            "region": {
+                                "startLine": location.get("line", 1),
+                            },
                         },
-                        "region": {
-                            "startLine": location.get("line", 1),
-                        },
-                    },
-                }
-            ],
-        })
+                    }
+                ],
+            }
+        )
 
     return {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
@@ -251,7 +258,7 @@ def generate_sarif_report(findings: list[dict]) -> dict:
                     "driver": {
                         "name": "Adversarial Debate",
                         "version": "0.1.0",
-                        "informationUri": "https://github.com/anthropics/adversarial-debate",
+                        "informationUri": "https://github.com/dr-gareth-roberts/adverserial-debate",
                         "rules": rules,
                     },
                 },
@@ -323,7 +330,10 @@ async def main() -> int:
         # Text format
         output = f"Found {len(findings)} issues\n"
         for f in findings:
-            output += f"[{f.get('severity', 'unknown').upper()}] {f.get('title', 'Untitled')} in {f.get('file', 'unknown')}\n"
+            output += (
+                f"[{f.get('severity', 'unknown').upper()}] {f.get('title', 'Untitled')} "
+                f"in {f.get('file', 'unknown')}\n"
+            )
 
     # Write output
     if args.output:

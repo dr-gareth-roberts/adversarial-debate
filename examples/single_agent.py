@@ -5,9 +5,9 @@ This example shows how to use a single agent for targeted analysis,
 which is useful when you want to focus on specific vulnerability types.
 """
 
-import asyncio
 import argparse
-from datetime import datetime, timezone
+import asyncio
+from datetime import UTC, datetime
 from pathlib import Path
 
 from adversarial_debate import (
@@ -55,7 +55,7 @@ async def analyze_file(
     # Build context
     context = AgentContext(
         run_id=f"single-{agent_type}-001",
-        timestamp_iso=datetime.now(timezone.utc).isoformat(),
+        timestamp_iso=datetime.now(UTC).isoformat(),
         policy={},
         thread_id="thread-001",
         task_id="task-001",
