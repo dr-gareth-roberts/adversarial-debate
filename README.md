@@ -315,13 +315,48 @@ asyncio.run(run_in_sandbox())
 
 ## Documentation
 
-- [Architecture Overview](docs/architecture.md) - System design, data flow, and component interactions
-- [Agent System](docs/agents.md) - Deep dive into each agent's behavior and attack strategies
-- [Data Structures](docs/data-structures.md) - Complete type reference for all data models
-- [Pipeline Execution](docs/pipeline.md) - Step-by-step walkthrough of the analysis pipeline
-- [API Reference](docs/api.md) - Comprehensive API documentation with examples
-- [Demo Walkthrough](docs/demo.md) - Quick start with the mock provider
-- [Examples](examples/) - Sample code and vulnerable test applications
+📚 **[Full Documentation](docs/index.md)** — Complete guides, references, and tutorials.
+
+### Getting Started
+- [Quickstart](docs/getting-started/quickstart.md) — Get your first scan running in 5 minutes
+- [Installation](docs/getting-started/installation.md) — All installation methods
+- [Your First Analysis](docs/getting-started/first-analysis.md) — Step-by-step tutorial
+
+### User Guides
+- [CLI Reference](docs/guides/cli-reference.md) — Complete command-line reference
+- [Configuration](docs/guides/configuration.md) — Environment variables and config files
+- [Provider Setup](docs/guides/providers/index.md) — Anthropic, OpenAI, Azure, Ollama
+- [Output Formats](docs/guides/output-formats.md) — JSON, SARIF, HTML, Markdown
+- [Interpreting Results](docs/guides/interpreting-results.md) — Understanding findings
+
+### Integration
+- [CI/CD Integration](docs/integration/ci-cd.md) — GitHub Actions, GitLab CI, Jenkins
+- [Baseline Tracking](docs/integration/baseline-tracking.md) — Track regressions
+
+### Concepts
+- [How It Works](docs/concepts/how-it-works.md) — System overview
+- [Security Model](docs/concepts/security-model.md) — Threat model and sandboxing
+- [Attack Coverage](docs/concepts/attack-coverage.md) — What vulnerabilities are detected
+
+### Developer Guides
+- [Python API](docs/developers/python-api.md) — Programmatic usage
+- [Extending Agents](docs/developers/extending-agents.md) — Add custom agents
+- [Extending Providers](docs/developers/extending-providers.md) — Add LLM providers
+- [Event Sourcing](docs/developers/event-sourcing.md) — The Bead audit system
+- [Testing Guide](docs/developers/testing.md) — Testing your extensions
+
+### Reference
+- [Agent Reference](docs/reference/agents.md) — Detailed agent documentation
+- [Data Structures](docs/reference/data-structures.md) — Types and schemas
+- [Architecture](docs/reference/architecture.md) — System internals
+
+### Support
+- [Troubleshooting](docs/support/troubleshooting.md) — Common issues and solutions
+- [FAQ](docs/support/faq.md) — Frequently asked questions
+- [Glossary](docs/support/glossary.md) — Key terms defined
+
+### Other Resources
+- [Examples](examples/) — Sample code and vulnerable test applications
 - [Contributing Guidelines](CONTRIBUTING.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security Policy](SECURITY.md)
