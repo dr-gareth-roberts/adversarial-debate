@@ -35,16 +35,16 @@ jobs:
         run: uv run ruff format --check src tests
 
       - name: Run type checking
-        run: uv run mypy src
+        run: uv run python -m mypy src
 
       - name: Check import cycles
         run: uv run python scripts/check_import_cycles.py
 
       - name: Run tests
-        run: uv run pytest tests/ --tb=short
+        run: uv run python -m pytest tests/ --tb=short
 
       - name: Run tests with coverage
-        run: uv run pytest tests/ --cov=adversarial_debate --cov-report=xml --cov-report=term-missing --cov-fail-under=85
+        run: uv run python -m pytest tests/ --cov=adversarial_debate --cov-report=xml --cov-report=term-missing --cov-fail-under=85
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -68,15 +68,15 @@ jobs:
         run: uv sync --extra dev --frozen
 
       - name: Run security checks with bandit
-        run: uv run bandit -r src/adversarial_debate -ll -ii
+        run: uv run python -m bandit -r src/adversarial_debate -ll -ii
 
       - name: Run dependency vulnerability audit
-        run: uv run pip-audit
+        run: uv run python -m pip_audit
 
       - name: Generate SBOM (CycloneDX)
         run: |
           uv run python -m pip install cyclonedx-bom
-          uv run cyclonedx-py -o sbom.xml
+          uv run python -m cyclonedx_py -o sbom.xml
 
       - name: Upload SBOM artifact
         uses: actions/upload-artifact@v4

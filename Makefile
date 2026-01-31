@@ -11,10 +11,10 @@ format:
 	uv run --extra dev ruff format src tests
 
 typecheck:
-	uv run --extra dev mypy src
+	uv run --extra dev python -m mypy src
 
 test:
-	uv run --extra dev pytest tests/ -v
+	uv run --extra dev python -m pytest tests/ -v
 
 import-cycles:
 	uv run python scripts/check_import_cycles.py
