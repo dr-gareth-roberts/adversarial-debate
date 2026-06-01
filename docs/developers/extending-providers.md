@@ -283,13 +283,13 @@ async def test_model_tier_mapping(provider):
 Handle API errors appropriately:
 
 ```python
-from adversarial_debate.exceptions import ProviderError, RateLimitError
+from adversarial_debate.exceptions import ProviderError, ProviderRateLimitError
 
 async def complete(self, messages: list[Message], **kwargs) -> LLMResponse:
     async with session.post(...) as response:
         if response.status == 429:
             retry_after = response.headers.get("Retry-After", "60")
-            raise RateLimitError(f"Rate limited, retry after {retry_after}s")
+            raise ProviderRateLimitError(f"Rate limited, retry after {retry_after}s")
 
         if response.status == 401:
             raise ProviderError("Invalid API key")
@@ -322,7 +322,7 @@ async def with_retry(
     for attempt in range(max_retries):
         try:
             return await func()
-        except RateLimitError:
+        except ProviderRateLimitError:
             if attempt == max_retries - 1:
                 raise
             delay = min(base_delay * (2 ** attempt), max_delay)

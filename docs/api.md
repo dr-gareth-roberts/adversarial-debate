@@ -690,7 +690,7 @@ Attack planning types are defined in `adversarial_debate.attack_plan`.
 
 | Enum | Values |
 |------|--------|
-| `AgentType` | `BREAK_AGENT`, `EXPLOIT_AGENT`, `CHAOS_AGENT` |
+| `AgentType` | `BREAK_AGENT`, `EXPLOIT_AGENT`, `CHAOS_AGENT`, `CRYPTO_AGENT` |
 | `AttackPriority` | `CRITICAL` (1), `HIGH` (2), `MEDIUM` (3), `LOW` (4), `MINIMAL` (5) |
 | `RiskLevel` | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` |
 
@@ -983,7 +983,7 @@ print(config.bead_ledger_path)   # "./beads/ledger.jsonl"
 ```bash
 # Run single agent analysis
 adversarial-debate analyze <agent> <target>
-  agent: exploit | break | chaos
+  agent: exploit | break | chaos | crypto
   target: file or directory path
 
 # Create attack plan only
@@ -1052,17 +1052,23 @@ except ProviderError as e:
 ```
 AdversarialDebateError
 ├── AgentError
-│   ├── AgentTimeoutError
-│   └── AgentParseError
+│   ├── AgentExecutionError
+│   ├── AgentParseError
+│   └── AgentTimeoutError
 ├── ProviderError
-│   ├── RateLimitError
-│   └── APIError
+│   ├── ProviderAuthenticationError
+│   ├── ProviderConnectionError
+│   └── ProviderRateLimitError
 ├── SandboxError
-│   ├── SandboxTimeoutError
-│   └── SandboxSecurityError
-└── StoreError
-    ├── LedgerCorruptError
-    └── IdempotencyError
+│   ├── SandboxExecutionError
+│   ├── SandboxSecurityError
+│   └── SandboxTimeoutError
+├── StoreError
+│   ├── BeadValidationError
+│   └── DuplicateBeadError
+└── ConfigError
+    ├── ConfigNotFoundError
+    └── ConfigValidationError
 ```
 
 ---

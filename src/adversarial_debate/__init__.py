@@ -37,6 +37,7 @@ from .agents import (
     ChaosAgent,
     ChaosOrchestrator,
     CrossExaminationAgent,
+    CryptoAgent,
     ExploitAgent,
 )
 from .attack_plan import (
@@ -125,6 +126,7 @@ __all__ = [
     "ExploitAgent",
     "BreakAgent",
     "ChaosAgent",
+    "CryptoAgent",
     "ChaosOrchestrator",
     "CrossExaminationAgent",
     "Arbiter",

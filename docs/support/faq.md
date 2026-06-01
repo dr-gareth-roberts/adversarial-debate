@@ -100,7 +100,7 @@ Payloads are executed only in the sandbox environment with strict isolation. Wit
 
 ```bash
 # Compare against baseline
-adversarial-debate run src/ --baseline previous-bundle.json
+adversarial-debate run src/ --baseline-file previous-bundle.json --baseline-mode only-new
 
 # Or use git diff
 git diff --name-only HEAD~1 | xargs adversarial-debate run

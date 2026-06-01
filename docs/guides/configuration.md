@@ -20,9 +20,10 @@ Configuration values are applied in this order (later overrides earlier):
 | `LLM_PROVIDER` | `anthropic` | LLM provider to use |
 | `LLM_MODEL` | Provider default | Model name override |
 | `LLM_TIMEOUT` | `120` | Request timeout (seconds) |
-| `LLM_TEMPERATURE` | `0.7` | Sampling temperature |
-| `LLM_MAX_TOKENS` | `4096` | Maximum output tokens |
-| `LLM_MAX_RETRIES` | `3` | Maximum retry attempts |
+
+> Sampling temperature, max output tokens, and retry counts are not read from
+> the environment — set them in a [configuration file](#configuration-file)
+> under the `provider` block.
 
 ### Provider API Keys
 
@@ -45,19 +46,10 @@ Configuration values are applied in this order (later overrides earlier):
 | `ADVERSARIAL_LOG_FORMAT` | `text` | Log format (`text` or `json`) |
 | `ADVERSARIAL_OUTPUT_DIR` | `./output` | Default output directory |
 | `ADVERSARIAL_BEAD_LEDGER` | `./beads/ledger.jsonl` | Bead ledger file path |
-| `ADVERSARIAL_CACHE_DIR` | `./cache` | Cache directory |
-| `ADVERSARIAL_CACHE_TTL` | `86400` | Cache time-to-live (seconds) |
 
-### Sandbox Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ADVERSARIAL_SANDBOX_DOCKER` | `true` | Use Docker for sandbox |
-| `ADVERSARIAL_SANDBOX_IMAGE` | `python:3.11-slim` | Docker image for sandbox |
-| `ADVERSARIAL_SANDBOX_MEMORY` | `256m` | Memory limit |
-| `ADVERSARIAL_SANDBOX_CPU` | `0.5` | CPU limit |
-| `ADVERSARIAL_SANDBOX_TIMEOUT` | `30` | Execution timeout (seconds) |
-| `ADVERSARIAL_SANDBOX_NETWORK` | `false` | Allow network access |
+> Sandbox behaviour (Docker image, memory/CPU limits, network access, timeouts)
+> is configured through the `sandbox` block of a
+> [configuration file](#configuration-file), not via environment variables.
 
 ## Configuration File
 
@@ -86,20 +78,17 @@ For complex configurations, use a JSON configuration file:
     "network_enabled": false,
     "use_subprocess": true
   },
-  "cache": {
-    "enabled": true,
-    "directory": "./cache",
-    "ttl_seconds": 86400
-  },
-  "output": {
-    "directory": "./output",
-    "bundle_file": "bundle.json"
-  },
+  "output_dir": "./output",
   "bead_ledger_path": "./beads/ledger.jsonl",
   "debug": false,
   "dry_run": false
 }
 ```
+
+> The loader recognises the `provider`, `logging`, `sandbox`, `debug`,
+> `dry_run`, `output_dir`, and `bead_ledger_path` keys (see
+> [`schemas/config.schema.json`](../../schemas/config.schema.json)). Unknown
+> keys are ignored.
 
 Save this as `config.json` and use it:
 
@@ -136,7 +125,8 @@ export LLM_MODEL=claude-sonnet-4-20250514
 
 Available models:
 - `claude-sonnet-4-20250514` (default for HOSTED_LARGE)
-- `claude-3-haiku-20240307` (default for HOSTED_SMALL)
+- `claude-3-5-haiku-20241022` (default for HOSTED_SMALL)
+- `claude-3-haiku-20240307` (default for LOCAL_SMALL)
 
 ### OpenAI
 
@@ -196,30 +186,18 @@ The framework uses different model tiers for different tasks:
 | `HOSTED_LARGE` | Claude Sonnet | Deep analysis (ExploitAgent, BreakAgent, Arbiter) |
 | `HOSTED_SMALL` | Claude Haiku | Faster tasks (ChaosOrchestrator, ChaosAgent) |
 
-Override the model for specific tiers in your config file:
-
-```json
-{
-  "provider": {
-    "provider": "anthropic",
-    "model_overrides": {
-      "HOSTED_LARGE": "claude-sonnet-4-20250514",
-      "HOSTED_SMALL": "claude-3-haiku-20240307"
-    }
-  }
-}
-```
+The tier-to-model mapping is built into each provider. To use a single
+non-default model everywhere, set `provider.model` in your config file (or
+`LLM_MODEL` in the environment).
 
 ### Rate Limiting
 
-Configure retry behaviour for rate limits:
+The provider retries failed requests; set the retry count in your config file:
 
 ```json
 {
   "provider": {
-    "max_retries": 5,
-    "retry_delay_seconds": 2,
-    "retry_exponential_base": 2
+    "max_retries": 5
   }
 }
 ```
@@ -237,30 +215,20 @@ For maximum security in the sandbox:
     "cpu_limit": 0.25,
     "timeout_seconds": 10,
     "network_enabled": false,
-    "read_only": true,
-    "drop_capabilities": true
+    "read_only": true
   }
 }
 ```
 
 ### Caching
 
-Enable caching to avoid redundant LLM calls:
+The analysis cache is managed through the `cache` subcommands with built-in
+defaults:
 
-```json
-{
-  "cache": {
-    "enabled": true,
-    "directory": "./cache",
-    "ttl_seconds": 86400,
-    "max_size_mb": 1000
-  }
-}
-```
-
-View cache statistics:
 ```bash
 adversarial-debate cache stats
+adversarial-debate cache cleanup
+adversarial-debate cache clear
 ```
 
 ## Configuration Validation
@@ -294,7 +262,6 @@ ADVERSARIAL_LOG_LEVEL=DEBUG
 # .env.ci
 LLM_PROVIDER=anthropic
 ADVERSARIAL_LOG_FORMAT=json
-ADVERSARIAL_SANDBOX_DOCKER=false
 ```
 
 ### Production
@@ -304,7 +271,6 @@ ADVERSARIAL_SANDBOX_DOCKER=false
 LLM_PROVIDER=anthropic
 ADVERSARIAL_LOG_LEVEL=WARNING
 ADVERSARIAL_LOG_FORMAT=json
-ADVERSARIAL_CACHE_TTL=3600
 ```
 
 ## See Also

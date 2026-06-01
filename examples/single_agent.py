@@ -7,16 +7,18 @@ which is useful when you want to focus on specific vulnerability types.
 
 import argparse
 import asyncio
+import os
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
 from adversarial_debate import (
     AgentContext,
-    AnthropicProvider,
     BeadStore,
     BreakAgent,
     ChaosAgent,
     ExploitAgent,
+    get_provider,
 )
 
 
@@ -36,9 +38,9 @@ async def analyze_file(
     # Read the file
     code = file_path.read_text()
 
-    # Initialize components
-    provider = AnthropicProvider()
-    store = BeadStore(":memory:")
+    # Initialize components. Set LLM_PROVIDER=mock to run this with no API key.
+    provider = get_provider(os.getenv("LLM_PROVIDER", "anthropic"))
+    store = BeadStore(Path(tempfile.mkdtemp()) / "ledger.jsonl")
 
     # Select agent
     agents = {

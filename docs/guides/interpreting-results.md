@@ -301,7 +301,7 @@ After applying fixes:
 adversarial-debate run src/ --output results-v2/
 
 # Compare with baseline
-adversarial-debate run src/ --baseline results/bundle.json
+adversarial-debate run src/ --baseline-file results/bundle.json --baseline-mode only-new
 ```
 
 ### Tracking Progress

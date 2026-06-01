@@ -13,10 +13,12 @@ adversarial-debate [GLOBAL OPTIONS] COMMAND [COMMAND OPTIONS] [ARGUMENTS]
 | Option | Description |
 |--------|-------------|
 | `--version` | Show version and exit |
+| `--completions SHELL` | Print a shell completion script (`bash`, `zsh`, `fish`) and exit |
 | `-c, --config FILE` | Path to configuration file |
-| `--log-level LEVEL` | Log level: DEBUG, INFO, WARNING, ERROR |
+| `--log-level LEVEL` | Log level: DEBUG, INFO, WARNING, ERROR (default: INFO) |
 | `--json-output` | Output results as JSON |
 | `--dry-run` | Show what would be done without executing |
+| `-o, --output PATH` | Output file or directory (meaning depends on the command) |
 
 ## Commands
 
@@ -39,16 +41,20 @@ adversarial-debate run TARGET [OPTIONS]
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-o, --output DIR` | `./output` | Output directory for results |
-| `--bundle-file FILE` | `bundle.json` | Name for the canonical results bundle |
+| `--bundle-file FILE` | `<run_dir>/bundle.json` | Path for the canonical results bundle |
 | `--report-file FILE` | — | Generate a formatted report file |
-| `--format FORMAT` | `json` | Report format: `json`, `sarif`, `html`, `markdown` |
+| `--format FORMAT` | sniffed from `--report-file` extension | Report format: `json`, `sarif`, `html`, `markdown` |
 | `--parallel N` | `3` | Maximum concurrent agent executions |
 | `--time-budget SECONDS` | `600` | Total time budget for the analysis |
 | `--skip-verdict` | — | Skip the Arbiter verdict stage |
 | `--skip-debate` | — | Skip cross-examination stage |
+| `--debate-max-findings N` | `40` | Max findings to send to cross-examination |
 | `--fail-on LEVEL` | `block` | Exit non-zero on: `block`, `warn`, `never` |
-| `--baseline FILE` | — | Compare against baseline for regression detection |
+| `--min-severity LEVEL` | `high` | Minimum severity that triggers failure gating: `critical`, `high`, `medium`, `low`, `info` |
 | `--files FILE...` | — | Analyse only specific files (for pre-commit hooks) |
+| `--baseline-file FILE` | — | Baseline bundle to compare against for regression detection |
+| `--baseline-mode MODE` | `off` | Baseline gating mode: `off`, `only-new` |
+| `--baseline-write FILE` | — | Write the current bundle to this path as a baseline, then exit 0 |
 
 **Examples:**
 
@@ -68,8 +74,8 @@ adversarial-debate run src/ --time-budget 300
 # Skip verdict for faster iteration
 adversarial-debate run src/ --skip-verdict
 
-# Compare against baseline
-adversarial-debate run src/ --baseline previous-run.json
+# Compare against a baseline and fail only on NEW findings (PR workflows)
+adversarial-debate run src/ --baseline-file previous-run.json --baseline-mode only-new
 
 # Use with pre-commit hooks
 adversarial-debate run . --files src/api/auth.py src/api/users.py
@@ -94,9 +100,11 @@ adversarial-debate analyze AGENT TARGET [OPTIONS]
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `-o, --output FILE` | — | Output file for results |
-| `--format FORMAT` | `json` | Output format: `json`, `text` |
+| `-o, --output FILE` | — | Output file for results (global option) |
+| `--focus AREA...` | — | Focus areas to steer the agent (e.g. `injection auth`) |
 | `--timeout SECONDS` | `120` | Timeout for the agent |
+
+Use the global `--json-output` flag to emit results as JSON.
 
 **Examples:**
 
@@ -132,9 +140,9 @@ adversarial-debate orchestrate TARGET [OPTIONS]
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `-o, --output FILE` | — | Output file for attack plan |
+| `-o, --output FILE` | — | Output file for attack plan (global option) |
 | `--exposure LEVEL` | `internal` | Exposure level: `public`, `authenticated`, `internal` |
-| `--time-budget SECONDS` | `600` | Time budget for planning |
+| `--time-budget SECONDS` | `300` | Time budget for planning |
 
 **Examples:**
 
@@ -164,8 +172,10 @@ adversarial-debate verdict FINDINGS [OPTIONS]
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `-o, --output FILE` | — | Output file for verdict |
-| `--format FORMAT` | `json` | Output format: `json`, `text` |
+| `-o, --output FILE` | — | Output file for verdict (global option) |
+| `--context FILE` | — | Additional context JSON file (task, changed files, etc.) |
+
+Use the global `--json-output` flag to emit the verdict as JSON.
 
 **Examples:**
 
@@ -195,8 +205,9 @@ adversarial-debate watch TARGET [OPTIONS]
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--agent AGENT` | `exploit` | Agent to run on changes |
-| `--debounce SECONDS` | `2` | Wait time after change before analysing |
+| `--agent AGENT` | `all` | Agent to run on changes: `exploit`, `break`, `chaos`, `crypto`, `all` |
+| `--debounce SECONDS` | `0.5` | Wait time after change before analysing |
+| `--patterns GLOB...` | `*.py` | File patterns to watch |
 
 **Examples:**
 
@@ -233,8 +244,8 @@ adversarial-debate cache stats
 # Clear the cache
 adversarial-debate cache clear
 
-# Remove old entries
-adversarial-debate cache cleanup --older-than 7d
+# Remove expired entries
+adversarial-debate cache cleanup
 ```
 
 ## Environment Variables
@@ -271,10 +282,10 @@ See [Configuration Guide](configuration.md) for complete details.
 
 | Code | Meaning |
 |------|---------|
-| `0` | Success (PASS verdict or successful completion) |
-| `1` | Error (invalid input, configuration error, runtime error) |
-| `2` | Blocked (BLOCK verdict — security issues found) |
-| `3` | Warning (WARN verdict, when `--fail-on warn` is set) |
+| `0` | Success (PASS verdict, or successful completion) |
+| `1` | Error (invalid input, configuration error, runtime error); also a WARN/BLOCK verdict when `--fail-on warn` is set |
+| `2` | Blocked (BLOCK verdict, or new findings at/above `--min-severity` under `--baseline-mode only-new`) |
+| `130` | Interrupted (Ctrl-C) |
 
 ## Output Files
 
@@ -308,13 +319,13 @@ Generate shell completion scripts:
 
 ```bash
 # Bash
-adversarial-debate --completion bash > /etc/bash_completion.d/adversarial-debate
+adversarial-debate --completions bash > /etc/bash_completion.d/adversarial-debate
 
 # Zsh
-adversarial-debate --completion zsh > ~/.zsh/completions/_adversarial-debate
+adversarial-debate --completions zsh > ~/.zsh/completions/_adversarial-debate
 
 # Fish
-adversarial-debate --completion fish > ~/.config/fish/completions/adversarial-debate.fish
+adversarial-debate --completions fish > ~/.config/fish/completions/adversarial-debate.fish
 ```
 
 ## See Also

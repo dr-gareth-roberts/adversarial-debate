@@ -561,11 +561,11 @@ async def safe_llm_call(provider: LLMProvider, messages: list[Message]) -> str:
         try:
             response = await provider.complete(messages, json_mode=True)
             return response.content
-        except RateLimitError:
+        except ProviderRateLimitError:
             wait_time = 2 ** attempt
             logger.warning(f"Rate limited, waiting {wait_time}s")
             await asyncio.sleep(wait_time)
-        except APIError as e:
+        except ProviderError as e:
             logger.error(f"API error: {e}")
             if attempt == max_retries - 1:
                 raise
