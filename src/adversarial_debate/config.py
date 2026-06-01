@@ -198,6 +198,7 @@ class Config:
     dry_run: bool = False
     output_dir: str = "./output"
     bead_ledger_path: str = "./beads/ledger.jsonl"
+    cache_dir: str = ".adversarial-cache"
 
     def validate(self) -> None:
         """Validate all configuration sections."""
@@ -218,6 +219,7 @@ class Config:
             "dry_run": self.dry_run,
             "output_dir": self.output_dir,
             "bead_ledger_path": self.bead_ledger_path,
+            "cache_dir": self.cache_dir,
         }
 
     @classmethod
@@ -229,6 +231,7 @@ class Config:
             ADVERSARIAL_DRY_RUN: Enable dry run mode
             ADVERSARIAL_OUTPUT_DIR: Output directory
             ADVERSARIAL_BEAD_LEDGER: Path to bead ledger
+            ADVERSARIAL_CACHE_DIR: Incremental-analysis cache directory
             ADVERSARIAL_LOG_LEVEL: Log level
             ADVERSARIAL_LOG_FORMAT: Log format (json/text)
             ANTHROPIC_API_KEY: Anthropic API key
@@ -257,6 +260,7 @@ class Config:
             dry_run=os.environ.get("ADVERSARIAL_DRY_RUN", "").lower() in ("1", "true", "yes"),
             output_dir=os.environ.get("ADVERSARIAL_OUTPUT_DIR", "./output"),
             bead_ledger_path=os.environ.get("ADVERSARIAL_BEAD_LEDGER", "./beads/ledger.jsonl"),
+            cache_dir=os.environ.get("ADVERSARIAL_CACHE_DIR", ".adversarial-cache"),
         )
 
     @classmethod
@@ -326,6 +330,7 @@ class Config:
             dry_run=data.get("dry_run", False),
             output_dir=data.get("output_dir", "./output"),
             bead_ledger_path=data.get("bead_ledger_path", "./beads/ledger.jsonl"),
+            cache_dir=data.get("cache_dir", ".adversarial-cache"),
         )
 
 

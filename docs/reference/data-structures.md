@@ -707,7 +707,7 @@ bundle = {
         "started_at": "2024-01-15T14:30:22Z",
         "finished_at": "2024-01-15T14:32:45Z",
         "files_analyzed": ["src/api/users.py"],
-        "version": "0.1.0",
+        "version": "0.2.0",
     },
     "summary": {
         "verdict": "WARN",  # BLOCK, WARN, PASS

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-02
+
 ### Added
 - Comprehensive API documentation
 - Real-world usage examples
@@ -14,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-commit hooks for code quality
 - GitHub issue and PR templates
 - Security policy and vulnerability reporting process
+- Opt-in incremental caching for the `run` pipeline (`run --cache`): reuses
+  per-agent results when the target code is unchanged and self-invalidates on
+  any change. Off by default (a cache hit skips the agent's bead-ledger
+  entries). Configurable via `cache_dir` / `ADVERSARIAL_CACHE_DIR`
 - Test coverage for previously untested modules: all output formatters
   (JSON/SARIF/HTML/Markdown), results normalisation, shell completions, file
   watching, the cache manager, structured logging, the Anthropic provider, and

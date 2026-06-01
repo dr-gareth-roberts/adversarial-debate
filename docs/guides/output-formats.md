@@ -58,7 +58,7 @@ The `bundle.json` file is the canonical representation of all results:
     "started_at": "2024-01-15T14:30:22Z",
     "finished_at": "2024-01-15T14:32:45Z",
     "files_analyzed": ["src/api/users.py", "src/api/auth.py"],
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "summary": {
     "verdict": "BLOCK",
@@ -115,7 +115,7 @@ adversarial-debate run src/ --format sarif --report-file findings.sarif
       "tool": {
         "driver": {
           "name": "adversarial-debate",
-          "version": "0.1.0",
+          "version": "0.2.0",
           "rules": [...]
         }
       },

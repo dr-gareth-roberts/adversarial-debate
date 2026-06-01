@@ -28,7 +28,7 @@ def test_top_level_structure(sample_bundle: dict[str, Any]) -> None:
 def test_driver_metadata_uses_config(sample_bundle: dict[str, Any]) -> None:
     driver = _parse(sample_bundle)["runs"][0]["tool"]["driver"]
     assert driver["name"] == "adversarial-debate"
-    assert driver["version"] == "0.1.0"
+    assert driver["version"] == "0.2.0"
     assert driver["informationUri"].startswith("https://")
 
 

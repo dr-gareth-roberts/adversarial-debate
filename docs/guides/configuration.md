@@ -46,6 +46,7 @@ Configuration values are applied in this order (later overrides earlier):
 | `ADVERSARIAL_LOG_FORMAT` | `text` | Log format (`text` or `json`) |
 | `ADVERSARIAL_OUTPUT_DIR` | `./output` | Default output directory |
 | `ADVERSARIAL_BEAD_LEDGER` | `./beads/ledger.jsonl` | Bead ledger file path |
+| `ADVERSARIAL_CACHE_DIR` | `.adversarial-cache` | Incremental-analysis cache directory |
 
 > Sandbox behaviour (Docker image, memory/CPU limits, network access, timeouts)
 > is configured through the `sandbox` block of a
@@ -86,7 +87,7 @@ For complex configurations, use a JSON configuration file:
 ```
 
 > The loader recognises the `provider`, `logging`, `sandbox`, `debug`,
-> `dry_run`, `output_dir`, and `bead_ledger_path` keys (see
+> `dry_run`, `output_dir`, `bead_ledger_path`, and `cache_dir` keys (see
 > [`schemas/config.schema.json`](../../schemas/config.schema.json)). Unknown
 > keys are ignored.
 
@@ -222,13 +223,26 @@ For maximum security in the sandbox:
 
 ### Caching
 
-The analysis cache is managed through the `cache` subcommands with built-in
-defaults:
+Caching is **opt-in**. Pass `--cache` to `run` to reuse a previous run's agent
+results when the target code is unchanged:
+
+```bash
+adversarial-debate run src/ --cache
+```
+
+The cache key is the analysed code plus the agent name, so it serves an
+unchanged re-run of the same target and self-invalidates as soon as any analysed
+file changes (it is whole-target, not per-file). A cache hit skips the agent —
+and therefore its bead-ledger entries — which is why caching is off by default
+for a security tool. Entries live under `ADVERSARIAL_CACHE_DIR`
+(`.adversarial-cache` by default) with a 7-day TTL.
+
+Inspect or clear the cache with the `cache` subcommands:
 
 ```bash
 adversarial-debate cache stats
-adversarial-debate cache cleanup
-adversarial-debate cache clear
+adversarial-debate cache cleanup   # remove expired entries
+adversarial-debate cache clear     # remove everything
 ```
 
 ## Configuration Validation

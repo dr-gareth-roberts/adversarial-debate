@@ -259,7 +259,7 @@ def generate_sarif_report(findings: list[dict]) -> dict:
                 "tool": {
                     "driver": {
                         "name": "Adversarial Debate",
-                        "version": "0.1.0",
+                        "version": "0.2.0",
                         "informationUri": "https://github.com/dr-gareth-roberts/adversarial-debate",
                         "rules": rules,
                     },

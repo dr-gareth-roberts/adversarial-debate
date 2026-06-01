@@ -74,6 +74,7 @@ def make_args(**overrides: object) -> argparse.Namespace:
         "config": None,
         "patterns": ["*.py"],
         "debounce": 0.5,
+        "cache": False,
         "cache_command": "stats",
     }
     base.update(overrides)
@@ -288,29 +289,128 @@ class TestRun:
         assert rc == 0
 
 
+class TestRunCaching:
+    async def test_default_run_does_not_populate_cache(
+        self, mock_config: Config, code_file: Path, tmp_path: Path
+    ) -> None:
+        mock_config.cache_dir = str(tmp_path / "cache")
+        rc = await cmd_run(make_args(target=str(code_file)), mock_config)  # --cache off
+        assert rc == 0
+        cache_dir = Path(mock_config.cache_dir)
+        assert not cache_dir.exists() or not list(cache_dir.rglob("*.json"))
+
+    async def test_cache_populates_then_short_circuits_agents(
+        self,
+        mock_config: Config,
+        code_file: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        mock_config.cache_dir = str(tmp_path / "cache")
+
+        # First run with --cache populates the per-agent cache.
+        rc = await cmd_run(make_args(target=str(code_file), cache=True), mock_config)
+        assert rc == 0
+        cache_dir = Path(mock_config.cache_dir)
+        assert list(cache_dir.rglob("*.json")), "cache was not populated"
+
+        # Second run: the four analysis agents must be served from cache, so
+        # their .run is never invoked. Make it blow up if it is — a cache miss
+        # would call the patched method and the run would fail (rc != 0).
+        from adversarial_debate.agents import (
+            BreakAgent,
+            ChaosAgent,
+            CryptoAgent,
+            ExploitAgent,
+        )
+
+        async def boom(self: object, context: object) -> object:
+            raise AssertionError(f"{type(self).__name__}.run should have been cached")
+
+        for cls in (ExploitAgent, BreakAgent, ChaosAgent, CryptoAgent):
+            monkeypatch.setattr(cls, "run", boom)
+
+        rc2 = await cmd_run(make_args(target=str(code_file), cache=True), mock_config)
+        assert rc2 == 0, "second run should be served entirely from cache"
+
+    async def test_changed_code_misses_cache(
+        self,
+        mock_config: Config,
+        code_file: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        mock_config.cache_dir = str(tmp_path / "cache")
+        rc = await cmd_run(make_args(target=str(code_file), cache=True), mock_config)
+        assert rc == 0
+
+        # Change the analysed file: the content hash differs, so the cache must
+        # NOT short-circuit — the real agent runs again.
+        code_file.write_text("def f():\n    return 2  # edited\n")
+
+        from adversarial_debate.agents import ExploitAgent
+
+        called = {"hit": False}
+        original_run = ExploitAgent.run
+
+        async def tracking_run(self: ExploitAgent, context: object) -> object:
+            called["hit"] = True
+            return await original_run(self, context)
+
+        monkeypatch.setattr(ExploitAgent, "run", tracking_run)
+
+        rc2 = await cmd_run(make_args(target=str(code_file), cache=True), mock_config)
+        assert rc2 == 0
+        assert called["hit"], "changed code should miss the cache and re-run the agent"
+
+
 class TestWatch:
     async def test_missing_target(self, mock_config: Config) -> None:
         assert await cmd_watch(make_args(target="/no/such"), mock_config) == 1
 
 
 class TestCache:
-    async def test_stats(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = await cmd_cache(make_args(cache_command="stats"), Config())
+    @pytest.fixture
+    def cache_config(self, tmp_path: Path) -> Config:
+        # Point the cache at a temp dir so tests never touch the real cache.
+        config = Config()
+        config.cache_dir = str(tmp_path / "cache")
+        return config
+
+    async def test_stats(self, cache_config: Config, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = await cmd_cache(make_args(cache_command="stats"), cache_config)
         assert rc == 0
         assert "Cache Statistics" in capsys.readouterr().out
 
-    async def test_clear(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = await cmd_cache(make_args(cache_command="clear"), Config())
+    async def test_clear(self, cache_config: Config, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = await cmd_cache(make_args(cache_command="clear"), cache_config)
         assert rc == 0
         assert "Cleared" in capsys.readouterr().out
 
-    async def test_cleanup(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = await cmd_cache(make_args(cache_command="cleanup"), Config())
+    async def test_cleanup(self, cache_config: Config, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = await cmd_cache(make_args(cache_command="cleanup"), cache_config)
         assert rc == 0
         assert "Removed" in capsys.readouterr().out
 
-    async def test_unknown_command_returns_1(self) -> None:
-        assert await cmd_cache(make_args(cache_command="bogus"), Config()) == 1
+    async def test_unknown_command_returns_1(self, cache_config: Config) -> None:
+        assert await cmd_cache(make_args(cache_command="bogus"), cache_config) == 1
+
+    async def test_operates_on_configured_cache_dir(
+        self, cache_config: Config, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # cmd_cache must read/clear config.cache_dir (the same cache run --cache
+        # writes), not a hardcoded default. Seed an entry, then clear via the CLI.
+        from adversarial_debate.cache import CacheManager
+
+        CacheManager(cache_dir=cache_config.cache_dir).cache_result(
+            "code", "ExploitAgent", "f.py", {"findings": []}
+        )
+        assert list(Path(cache_config.cache_dir).rglob("*.json"))
+
+        rc = await cmd_cache(make_args(cache_command="clear"), cache_config)
+        assert rc == 0
+        assert "Cleared 1" in capsys.readouterr().out
+        assert not list(Path(cache_config.cache_dir).rglob("*.json"))
 
 
 class TestAsyncMain:

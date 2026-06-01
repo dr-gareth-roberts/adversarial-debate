@@ -46,6 +46,7 @@ adversarial-debate run TARGET [OPTIONS]
 | `--format FORMAT` | sniffed from `--report-file` extension | Report format: `json`, `sarif`, `html`, `markdown` |
 | `--parallel N` | `3` | Maximum concurrent agent executions |
 | `--time-budget SECONDS` | `600` | Total time budget for the analysis |
+| `--cache` | off | Reuse cached agent results when the target code is unchanged |
 | `--skip-verdict` | — | Skip the Arbiter verdict stage |
 | `--skip-debate` | — | Skip cross-examination stage |
 | `--debate-max-findings N` | `40` | Max findings to send to cross-examination |
@@ -275,6 +276,7 @@ These environment variables configure the framework:
 | `ADVERSARIAL_LOG_FORMAT` | `text` | Log format: `text`, `json` |
 | `ADVERSARIAL_OUTPUT_DIR` | `./output` | Default output directory |
 | `ADVERSARIAL_BEAD_LEDGER` | `./beads/ledger.jsonl` | Bead ledger path |
+| `ADVERSARIAL_CACHE_DIR` | `.adversarial-cache` | Incremental-analysis cache directory (used by `run --cache` and `cache`) |
 
 See [Configuration Guide](configuration.md) for complete details.
 
