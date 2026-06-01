@@ -44,7 +44,7 @@ jobs:
         run: uv run python -m pytest tests/ --tb=short
 
       - name: Run tests with coverage
-        run: uv run python -m pytest tests/ --cov=adversarial_debate --cov-report=xml --cov-report=term-missing --cov-fail-under=45
+        run: uv run python -m pytest tests/ --cov=adversarial_debate --cov-report=xml --cov-report=term-missing --cov-fail-under=80
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

@@ -14,9 +14,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pre-commit hooks for code quality
 - GitHub issue and PR templates
 - Security policy and vulnerability reporting process
+- Test coverage for previously untested modules: all output formatters
+  (JSON/SARIF/HTML/Markdown), results normalisation, shell completions, file
+  watching, the cache manager, structured logging, the Anthropic provider, and
+  the CLI command layer — raising overall coverage from 51% to 82%
 
 ### Changed
 - Enhanced README with badges and better examples
+- Raised the CI coverage gate from 45% to 80%
+- Upgraded dependencies to clear known CVEs (aiohttp, idna, requests, urllib3,
+  pip, pytest)
+
+### Fixed
+- Watch mode no longer runs a synchronous analysis callback twice per change
+  (it was invoked once to probe the result type and again via a worker thread)
+
+### Removed
+- Stale internal audit notes (`CODEBASE_AUDIT.md`,
+  `CODEBASE_CLEANUP_RECOMMENDATIONS.md`)
 
 ## [0.1.0] - 2025-01-17
 
