@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from adversarial_debate import watch as watch_module
 from adversarial_debate.watch import (
     FileWatcher,
     WatchConfig,
@@ -161,6 +162,44 @@ class TestWatchRunnerOnChange:
     def test_stop_without_watcher_is_safe(self) -> None:
         runner = WatchRunner([], analyze_callback=lambda paths: None)
         runner.stop()  # no watcher created yet — must not raise
+
+
+class TestWatchRunnerInitialAnalysis:
+    """The initial-analysis path in ``run`` shares the coroutine-detection
+    bugfix with ``_on_change``; cover it too so a regression in either path is
+    caught. ``FileWatcher.start`` (the endless polling loop) is stubbed out so
+    ``run`` returns after the single initial scan."""
+
+    @pytest.fixture(autouse=True)
+    def _no_polling(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        async def _noop(self: FileWatcher, poll_interval: float = 0.5) -> None:
+            return None
+
+        monkeypatch.setattr(watch_module.FileWatcher, "start", _noop)
+
+    async def test_sync_callback_invoked_once(self, tmp_path: Path) -> None:
+        (tmp_path / "a.py").write_text("x = 1\n")
+        (tmp_path / "b.py").write_text("y = 2\n")
+        calls: list[list[Path]] = []
+
+        runner = WatchRunner([tmp_path], analyze_callback=lambda paths: calls.append(list(paths)))
+        await runner.run()
+
+        assert len(calls) == 1
+        assert {p.name for p in calls[0]} == {"a.py", "b.py"}
+
+    async def test_async_callback_awaited_once(self, tmp_path: Path) -> None:
+        (tmp_path / "a.py").write_text("x = 1\n")
+        seen: list[list[Path]] = []
+
+        async def analyze(paths: list[Path]) -> None:
+            seen.append(list(paths))
+
+        runner = WatchRunner([tmp_path], analyze_callback=analyze)
+        await runner.run()
+
+        assert len(seen) == 1
+        assert seen[0][0].name == "a.py"
 
 
 @pytest.mark.parametrize("recursive", [True, False])
