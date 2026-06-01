@@ -6,6 +6,7 @@ analysis automatically when files are modified.
 
 import asyncio
 import contextlib
+import inspect
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -220,12 +221,13 @@ class WatchRunner:
         if not changed_paths:
             return
 
-        # Start new analysis
+        # Start new analysis. Detect coroutine functions up front so a
+        # synchronous callback is invoked exactly once (calling it to inspect
+        # the result would run the analysis an extra time).
         logger.info(f"Re-analyzing {len(changed_paths)} changed file(s)")
         try:
-            result = self.analyze_callback(changed_paths)
-            if asyncio.iscoroutine(result):
-                self._analysis_task = asyncio.create_task(result)
+            if inspect.iscoroutinefunction(self.analyze_callback):
+                self._analysis_task = asyncio.create_task(self.analyze_callback(changed_paths))
                 await self._analysis_task
             else:
                 await asyncio.to_thread(self.analyze_callback, changed_paths)
@@ -250,9 +252,8 @@ class WatchRunner:
             all_files = list(self._watcher._get_watched_files().keys())
             if all_files:
                 print(f"Running initial analysis on {len(all_files)} file(s)...\n")
-                result = self.analyze_callback(all_files)
-                if asyncio.iscoroutine(result):
-                    await result
+                if inspect.iscoroutinefunction(self.analyze_callback):
+                    await self.analyze_callback(all_files)
                 else:
                     await asyncio.to_thread(self.analyze_callback, all_files)
 

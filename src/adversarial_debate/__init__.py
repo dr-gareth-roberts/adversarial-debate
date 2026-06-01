@@ -37,6 +37,7 @@ from .agents import (
     ChaosAgent,
     ChaosOrchestrator,
     CrossExaminationAgent,
+    CryptoAgent,
     ExploitAgent,
 )
 from .attack_plan import (
@@ -113,7 +114,7 @@ from .verdict import (
     VerdictDecision,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # Version
@@ -125,6 +126,7 @@ __all__ = [
     "ExploitAgent",
     "BreakAgent",
     "ChaosAgent",
+    "CryptoAgent",
     "ChaosOrchestrator",
     "CrossExaminationAgent",
     "Arbiter",

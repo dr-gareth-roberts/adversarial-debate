@@ -228,6 +228,11 @@
       "type": "string",
       "default": "./output",
       "description": "Output directory for results"
+    },
+    "cache_dir": {
+      "type": "string",
+      "default": ".adversarial-cache",
+      "description": "Directory for the incremental-analysis cache (run --cache)"
     }
   },
   "additionalProperties": false

@@ -516,7 +516,26 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         "file_paths": files,
     }
 
+    # Optional incremental cache (opt-in via --cache). Keyed on the combined
+    # target code + agent name, so it serves unchanged re-runs of the same
+    # target and self-invalidates when any analysed file changes. Disabled by
+    # default because a cache hit skips the agent (and its bead-ledger entries).
+    from .cache import CacheManager
+
+    cache = CacheManager(cache_dir=config.cache_dir, enabled=getattr(args, "cache", False))
+
     async def run_agent(agent: Agent, task_id: str, extra_inputs: dict[str, Any]) -> AgentOutput:
+        cached = cache.get_cached(code, agent.name)
+        if cached is not None:
+            logger.info("Cache hit for %s; skipping analysis", agent.name)
+            confidence = cached.get("confidence")
+            return AgentOutput(
+                agent_name=agent.name,
+                result=cached,
+                beads_out=[],
+                confidence=float(confidence) if isinstance(confidence, int | float) else 1.0,
+            )
+
         analysis_inputs = dict(base_analysis_inputs)
         analysis_inputs.update(extra_inputs)
         context = AgentContext(
@@ -527,7 +546,9 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
             task_id=task_id,
             inputs=analysis_inputs,
         )
-        return await agent.run(context)
+        output = await agent.run(context)
+        cache.cache_result(code, agent.name, file_path, output.result)
+        return output
 
     sem = asyncio.Semaphore(max(1, args.parallel))
 
@@ -856,7 +877,7 @@ async def cmd_cache(args: argparse.Namespace, config: Config) -> int:
     """Manage analysis cache."""
     from .cache import CacheManager
 
-    cache = CacheManager()
+    cache = CacheManager(cache_dir=config.cache_dir)
 
     if args.cache_command == "stats":
         stats = cache.stats()

@@ -155,11 +155,17 @@ class TestConfig:
         monkeypatch.setenv("LLM_PROVIDER", "openai")
         monkeypatch.setenv("LLM_TIMEOUT", "60")
 
+        monkeypatch.setenv("ADVERSARIAL_CACHE_DIR", "custom-cache-dir")
+
         config = Config.from_env()
         assert config.debug is True
         assert config.logging.level == "DEBUG"
         assert config.provider.provider == "openai"
         assert config.provider.timeout_seconds == 60
+        assert config.cache_dir == "custom-cache-dir"
+
+    def test_cache_dir_defaults(self) -> None:
+        assert Config().cache_dir == ".adversarial-cache"
 
     def test_from_file(self, temp_dir: Path) -> None:
         """Test loading from file."""

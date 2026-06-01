@@ -145,7 +145,8 @@ Track regressions between scans:
   run: |
     if [ -f baseline/bundle.json ]; then
       adversarial-debate run src/ \
-        --baseline baseline/bundle.json \
+        --baseline-file baseline/bundle.json \
+        --baseline-mode only-new \
         --fail-on block
     else
       adversarial-debate run src/ --fail-on block

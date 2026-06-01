@@ -215,6 +215,11 @@ Examples:
         help="Maximum parallel agents (default: 3)",
     )
     run_parser.add_argument(
+        "--cache",
+        action="store_true",
+        help="Reuse cached agent results for unchanged target code (off by default)",
+    )
+    run_parser.add_argument(
         "--skip-verdict",
         action="store_true",
         help="Skip the final verdict (just collect findings)",

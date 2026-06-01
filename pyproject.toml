@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "adversarial-debate"
-version = "0.1.0"
+version = "0.2.0"
 description = "AI Red Team Security Testing Framework using adversarial agent mesh"
 readme = "README.md"
 license = "MIT"

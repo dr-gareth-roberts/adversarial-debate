@@ -23,7 +23,7 @@ class FormatterConfig:
     include_metadata: bool = True
     include_raw_findings: bool = False
     tool_name: str = "adversarial-debate"
-    tool_version: str = "0.1.0"
+    tool_version: str = "0.2.0"
     extra: dict[str, Any] = field(default_factory=dict)
 
 

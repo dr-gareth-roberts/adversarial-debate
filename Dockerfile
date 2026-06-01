@@ -81,7 +81,7 @@ FROM python:3.11-slim AS runtime
 # Security labels
 LABEL org.opencontainers.image.title="Adversarial Debate" \
       org.opencontainers.image.description="AI Red Team Security Testing Framework" \
-      org.opencontainers.image.version="0.1.0" \
+      org.opencontainers.image.version="0.2.0" \
       org.opencontainers.image.source="https://github.com/dr-gareth-roberts/adversarial-debate" \
       org.opencontainers.image.licenses="MIT"
 

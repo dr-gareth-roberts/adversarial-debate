@@ -9,16 +9,19 @@ This example demonstrates how to:
 """
 
 import asyncio
+import os
+import tempfile
 from datetime import UTC, datetime
+from pathlib import Path
 
 from adversarial_debate import (
     AgentContext,
-    AnthropicProvider,
     Arbiter,
     BeadStore,
     BreakAgent,
     ChaosAgent,
     ExploitAgent,
+    get_provider,
 )
 
 # Sample vulnerable code to analyze
@@ -75,10 +78,10 @@ async def main() -> None:
     print("=" * 60)
     print()
 
-    # Initialize components
+    # Initialize components. Set LLM_PROVIDER=mock to run this with no API key.
     print("[1/5] Initializing framework...")
-    provider = AnthropicProvider()
-    store = BeadStore(":memory:")  # In-memory store for example
+    provider = get_provider(os.getenv("LLM_PROVIDER", "anthropic"))
+    store = BeadStore(Path(tempfile.mkdtemp()) / "ledger.jsonl")
 
     # Create agents
     exploit_agent = ExploitAgent(provider, store)

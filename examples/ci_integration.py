@@ -10,20 +10,22 @@ This example shows how to:
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
 from adversarial_debate import (
     AgentContext,
-    AnthropicProvider,
     Arbiter,
     BeadStore,
     BreakAgent,
     ChaosAgent,
     CryptoAgent,
     ExploitAgent,
+    get_provider,
 )
 
 
@@ -65,9 +67,9 @@ async def analyze_files(
     if not files:
         return [], False
 
-    # Initialize components
-    provider = AnthropicProvider()
-    store = BeadStore(":memory:")
+    # Initialize components. Set LLM_PROVIDER=mock to run this with no API key.
+    provider = get_provider(os.getenv("LLM_PROVIDER", "anthropic"))
+    store = BeadStore(Path(tempfile.mkdtemp()) / "ledger.jsonl")
 
     # Create agents
     exploit_agent = ExploitAgent(provider, store)
@@ -257,7 +259,7 @@ def generate_sarif_report(findings: list[dict]) -> dict:
                 "tool": {
                     "driver": {
                         "name": "Adversarial Debate",
-                        "version": "0.1.0",
+                        "version": "0.2.0",
                         "informationUri": "https://github.com/dr-gareth-roberts/adversarial-debate",
                         "rules": rules,
                     },
