@@ -21,6 +21,7 @@ import secrets
 import signal
 import subprocess
 import tempfile
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -1072,6 +1073,9 @@ if not injection_found:
                 "..\\\\..\\\\..\\\\etc\\\\passwd",
             ]
 
+        # The target code runs inside the `with` block below, so every line
+        # (not just the first) must be indented to match that scope.
+        indented_target = textwrap.indent(target_code, "    ")
         test_code = f"""
 import os
 import tempfile
@@ -1092,7 +1096,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
     with open(allowed_file, "w") as f:
         f.write("PUBLIC_DATA")
 
-    {target_code}
+{indented_target}
 
     payloads = {json.dumps(payloads)}
     traversal_found = False
@@ -1718,8 +1722,8 @@ gc.collect()
             )
 
         test_code = f"""
-	import threading
-	import time
+import threading
+import time
 
 {target_code}
 

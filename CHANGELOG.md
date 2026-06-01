@@ -44,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exception hierarchy and `AgentType` values
 
 ### Fixed
+- `SandboxExecutor.test_concurrent_access` produced code with tab-indented
+  imports, so it always failed with `IndentationError`; it now runs
+- `SandboxExecutor.test_path_traversal` only indented the first line of the
+  target code, breaking on any multi-line function; all lines are now indented
 - Watch mode no longer runs a synchronous analysis callback twice per change
   (it was invoked once to probe the result type and again via a worker thread)
 - Shipped examples now run to completion (a missing `CryptoAgent` export broke
