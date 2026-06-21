@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -155,9 +155,7 @@ class PipelineService:
             combined_findings = self._combine_findings(agent_outputs)
 
             # Persist artifacts
-            self._persist_artifacts(
-                run_dir, plan_output, agent_outputs, combined_findings
-            )
+            self._persist_artifacts(run_dir, plan_output, agent_outputs, combined_findings)
 
             # Optional debate step
             debated_findings, debate_output = await self._run_debate(
@@ -194,9 +192,7 @@ class PipelineService:
             )
 
             # Optional baseline comparison
-            baseline_diff, baseline_exit_code = self._compare_baseline(
-                bundle, pipeline_config
-            )
+            baseline_diff, baseline_exit_code = self._compare_baseline(bundle, pipeline_config)
 
             # Determine exit code
             exit_code = self._determine_exit_code(
@@ -381,11 +377,9 @@ class PipelineService:
         pipeline_config: PipelineConfig,
     ) -> dict[str, AgentOutput]:
         """Run all agents in parallel with caching."""
-        cache = CacheManager(
-            cache_dir=self.config.cache_dir, enabled=pipeline_config.cache_enabled
-        )
+        cache = CacheManager(cache_dir=self.config.cache_dir, enabled=pipeline_config.cache_enabled)
 
-        base_analysis_inputs = {
+        base_analysis_inputs: dict[str, Any] = {
             "code": code,
             "file_path": files[0] if files else "",
             "file_paths": files,
@@ -417,7 +411,11 @@ class PipelineService:
             )
             output = await agent.run(context)
             cache.cache_result(
-                code, agent.name, base_analysis_inputs["file_path"], output.result, extra_inputs=extra_inputs
+                code,
+                agent.name,
+                base_analysis_inputs["file_path"],
+                output.result,
+                extra_inputs=extra_inputs,
             )
             return output
 

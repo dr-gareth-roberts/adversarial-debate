@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -81,18 +80,20 @@ async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
     # Create provider, bead store, and agent
     provider = _get_provider_from_config(config)
     bead_store = BeadStore(config.bead_ledger_path)
-    
+
     agent_factories: dict[str, type[Agent]] = {
         "exploit": ExploitAgent,
         "break": BreakAgent,
         "chaos": ChaosAgent,
         "crypto": CryptoAgent,
     }
-    
+
     agent_cls = agent_factories.get(args.agent)
     if agent_cls is None:
-        raise ValueError(f"Unknown agent: {args.agent}. Valid agents: {list(agent_factories.keys())}")
-    
+        raise ValueError(
+            f"Unknown agent: {args.agent}. Valid agents: {list(agent_factories.keys())}"
+        )
+
     agent: Agent = agent_cls(provider, bead_store)
 
     # Create context
@@ -467,7 +468,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         print(f"Break Findings: {run_dir / 'break_findings.json'}")
         print(f"Chaos Findings: {run_dir / 'chaos_findings.json'}")
         print(f"Combined Findings: {run_dir / 'findings.json'}")
-        
+
         # Display verdict summary if available
         verdict_data = bundle.get("verdict")
         if verdict_data:
@@ -477,7 +478,7 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
             print(f"Warnings: {verdict_summary.get('warnings', 0)}")
             print(f"Passed: {verdict_summary.get('passed', 0)}")
             print(f"False Positives: {verdict_summary.get('false_positives', 0)}")
-        
+
         # Display baseline diff if available
         if result.baseline_diff:
             print("\nBASELINE DIFF")
@@ -512,9 +513,7 @@ async def cmd_watch(args: argparse.Namespace, config: Config) -> int:
 
         # Determine which agents to run
         agents_to_run = (
-            ["exploit", "break", "chaos", "crypto"]
-            if args.agent == "all"
-            else [args.agent]
+            ["exploit", "break", "chaos", "crypto"] if args.agent == "all" else [args.agent]
         )
 
         for path in changed_paths[:5]:  # Limit to first 5 for performance

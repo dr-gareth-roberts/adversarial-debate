@@ -381,7 +381,7 @@ class BeadStore:
         where XXXX is a random suffix to prevent collisions in high-frequency async operations.
         """
         import secrets
-        
+
         now = datetime.now(UTC)
         date_part = now.strftime("%Y%m%d-%H%M%S")
         # Add microseconds for uniqueness

@@ -245,7 +245,7 @@ class ArbiterVerdict:
         # Basic block conditions
         if self.decision == VerdictDecision.BLOCK or len(self.blocking_issues) > 0:
             return True
-        
+
         # Auto-block conditions
         for issue in self.blocking_issues:
             # Critical + Easy to exploit = auto block

@@ -599,4 +599,3 @@ class Arbiter(Agent):
     def _generate_idempotency_key(self, context: AgentContext) -> str:
         """Generate idempotency key for verdict."""
         return f"IK-verdict-{context.thread_id}-{context.task_id}"
-
