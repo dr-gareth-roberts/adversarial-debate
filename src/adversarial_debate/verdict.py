@@ -234,9 +234,36 @@ class ArbiterVerdict:
     def should_block(self) -> bool:
         """Check if this verdict should block the merge.
 
-        Returns True if the decision is BLOCK or there are blocking issues.
+        Returns True if:
+        - The decision is BLOCK, or
+        - There are blocking issues, or
+        - Auto-block conditions are met:
+          * CRITICAL severity + TRIVIAL/EASY exploitation
+          * Sensitive data (password, credential, token, pii, ssn, credit) at risk
+          * 3+ HIGH severity blocking issues
         """
-        return self.decision == VerdictDecision.BLOCK or len(self.blocking_issues) > 0
+        # Basic block conditions
+        if self.decision == VerdictDecision.BLOCK or len(self.blocking_issues) > 0:
+            return True
+        
+        # Auto-block conditions
+        for issue in self.blocking_issues:
+            # Critical + Easy to exploit = auto block
+            if issue.validated_severity == "CRITICAL" and issue.exploitation_difficulty in (
+                ExploitationDifficulty.TRIVIAL,
+                ExploitationDifficulty.EASY,
+            ):
+                return True
+
+            # Sensitive data at risk
+            sensitive_keywords = ["password", "credential", "token", "pii", "ssn", "credit"]
+            for data in issue.data_at_risk:
+                if any(kw in data.lower() for kw in sensitive_keywords):
+                    return True
+
+        # Multiple high severity issues
+        high_count = sum(1 for i in self.blocking_issues if i.validated_severity == "HIGH")
+        return high_count >= 3
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to JSON-serializable dict."""

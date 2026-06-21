@@ -43,6 +43,7 @@ class CacheManager:
         code: str,
         agent_name: str,
         focus_areas: list[str] | None = None,
+        extra_inputs: dict[str, object] | None = None,
     ) -> bool:
         """Check if analysis results are cached.
 
@@ -50,6 +51,7 @@ class CacheManager:
             code: Source code to analyze
             agent_name: Name of the agent
             focus_areas: Optional focus areas
+            extra_inputs: Optional extra inputs (e.g. attack plan hints)
 
         Returns:
             True if valid cache entry exists
@@ -57,7 +59,7 @@ class CacheManager:
         if not self.enabled or not self._cache:
             return False
 
-        key = self._compute_key(code, agent_name, focus_areas)
+        key = self._compute_key(code, agent_name, focus_areas, extra_inputs)
         content_hash = hash_content(code)
 
         entry = self._cache.get(key)
@@ -72,6 +74,7 @@ class CacheManager:
         code: str,
         agent_name: str,
         focus_areas: list[str] | None = None,
+        extra_inputs: dict[str, object] | None = None,
     ) -> dict[str, Any] | None:
         """Get cached analysis results.
 
@@ -79,6 +82,7 @@ class CacheManager:
             code: Source code to analyze
             agent_name: Name of the agent
             focus_areas: Optional focus areas
+            extra_inputs: Optional extra inputs (e.g. attack plan hints)
 
         Returns:
             Cached result if valid, None otherwise
@@ -86,7 +90,7 @@ class CacheManager:
         if not self.enabled or not self._cache:
             return None
 
-        key = self._compute_key(code, agent_name, focus_areas)
+        key = self._compute_key(code, agent_name, focus_areas, extra_inputs)
         content_hash = hash_content(code)
 
         entry = self._cache.get(key)
@@ -109,6 +113,7 @@ class CacheManager:
         result: dict[str, Any],
         focus_areas: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
+        extra_inputs: dict[str, object] | None = None,
     ) -> CacheEntry | None:
         """Store analysis results in cache.
 
@@ -119,6 +124,7 @@ class CacheManager:
             result: Analysis result to cache
             focus_areas: Optional focus areas used
             metadata: Optional additional metadata
+            extra_inputs: Optional extra inputs (e.g. attack plan hints)
 
         Returns:
             Created cache entry, or None if caching disabled
@@ -126,7 +132,7 @@ class CacheManager:
         if not self.enabled or not self._cache:
             return None
 
-        key = self._compute_key(code, agent_name, focus_areas)
+        key = self._compute_key(code, agent_name, focus_areas, extra_inputs)
         content_hash = hash_content(code)
 
         return self._cache.set(
@@ -146,6 +152,7 @@ class CacheManager:
         code: str,
         agent_name: str,
         focus_areas: list[str] | None = None,
+        extra_inputs: dict[str, object] | None = None,
     ) -> bool:
         """Invalidate a cache entry.
 
@@ -153,6 +160,7 @@ class CacheManager:
             code: Source code
             agent_name: Name of the agent
             focus_areas: Optional focus areas
+            extra_inputs: Optional extra inputs (e.g. attack plan hints)
 
         Returns:
             True if entry was deleted
@@ -160,7 +168,7 @@ class CacheManager:
         if not self.enabled or not self._cache:
             return False
 
-        key = self._compute_key(code, agent_name, focus_areas)
+        key = self._compute_key(code, agent_name, focus_areas, extra_inputs)
         return self._cache.delete(key)
 
     def invalidate_file(self, file_path: str) -> int:
@@ -225,6 +233,7 @@ class CacheManager:
         code: str,
         agent_name: str,
         focus_areas: list[str] | None = None,
+        extra_inputs: dict[str, object] | None = None,
     ) -> str:
         """Compute cache key for given inputs."""
-        return hash_analysis_inputs(code, agent_name, focus_areas)
+        return hash_analysis_inputs(code, agent_name, focus_areas, extra_inputs=extra_inputs)

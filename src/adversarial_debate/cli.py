@@ -190,12 +190,6 @@ Examples:
         help="File or directory to analyze",
     )
     run_parser.add_argument(
-        "--output",
-        type=str,
-        help="Output directory for run artifacts",
-        metavar="PATH",
-    )
-    run_parser.add_argument(
         "--files",
         type=str,
         nargs="*",
