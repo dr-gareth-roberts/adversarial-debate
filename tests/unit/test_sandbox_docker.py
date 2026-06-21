@@ -305,18 +305,30 @@ class TestSandboxExecutorDocker:
                 assert "--read-only" not in call_args
 
     @pytest.mark.asyncio
-    async def test_docker_not_available_fallback(self, executor):
-        """Test fallback when Docker is not available."""
+    async def test_docker_not_available_opt_in_fallback(self, executor):
+        """With Docker unavailable, the subprocess fallback runs only when explicitly allowed."""
         code = "print('test')"
 
         with patch.object(executor, "is_docker_available", return_value=False):
-            # Should fall back to subprocess if enabled
             executor.config.use_subprocess = True
+            executor.config.allow_unsafe_subprocess = True  # explicit opt-in
 
             result = await executor.execute_python(code, inputs={})
 
-            # Should succeed via subprocess
+            # Should succeed via the explicitly-allowed subprocess fallback
             assert result.success is True
+
+    @pytest.mark.asyncio
+    async def test_docker_unavailable_fails_closed_by_default(self, executor):
+        """Docker requested but unavailable must NOT silently run unsandboxed code."""
+        with patch.object(executor, "is_docker_available", return_value=False):
+            executor.config.use_subprocess = True
+            executor.config.allow_unsafe_subprocess = False  # default
+
+            result = await executor.execute_python("print('x')", inputs={})
+
+            assert result.success is False
+            assert "Docker" in result.error and "unavailable" in result.error
 
     @pytest.mark.asyncio
     async def test_docker_not_available_no_fallback(self, executor):
@@ -328,7 +340,8 @@ class TestSandboxExecutorDocker:
             result = await executor.execute_python(code, inputs={})
 
             assert result.success is False
-            assert "No execution backend available" in result.error
+            # use_docker=True + unavailable + no opt-in => fail closed
+            assert "Docker" in result.error and "unavailable" in result.error
 
     @pytest.mark.asyncio
     async def test_docker_security_validation_failure(self, executor):

@@ -286,6 +286,51 @@ class TestArbiterVerdict:
         )
         assert verdict.should_block() is False
 
+    def test_should_block_auto_escalates_critical_warning(self) -> None:
+        """A CRITICAL + trivially-exploitable finding the arbiter filed as a
+        WARNING (not blocking) must still force a block. Regression guard: this
+        auto-escalation previously iterated the always-empty blocking_issues and
+        so never fired."""
+        warning = ValidatedFinding(
+            original_id="EXPLOIT-007",
+            original_agent="ExploitAgent",
+            original_title="Critical but filed as warning",
+            original_severity="CRITICAL",
+            validation_status=FindingValidation.CONFIRMED,
+            validated_severity="CRITICAL",
+            adjusted_severity_reason="",
+            exploitation_difficulty=ExploitationDifficulty.TRIVIAL,
+            exploitation_prerequisites=[],
+            real_world_exploitability=0.95,
+            impact_description="RCE",
+            affected_components=[],
+            data_at_risk=[],
+            remediation_effort=RemediationEffort.HOURS,
+            suggested_fix="",
+            fix_code_example="",
+            workaround="",
+            confidence=0.95,
+        )
+        verdict = ArbiterVerdict(
+            verdict_id="V-002",
+            thread_id="thread-1",
+            task_id="task-1",
+            decision=VerdictDecision.WARN,
+            decision_rationale="Filed as warning",
+            blocking_issues=[],  # arbiter did NOT mark it blocking
+            warnings=[warning],
+            passed_findings=[],
+            false_positives=[],
+            remediation_tasks=[],
+            total_remediation_effort=RemediationEffort.HOURS,
+            summary="Critical warning",
+            key_concerns=[],
+            recommendations=[],
+            findings_analyzed=1,
+            confidence=0.9,
+        )
+        assert verdict.should_block() is True
+
     def test_generate_summary_report(self) -> None:
         """Test summary report generation."""
         verdict = ArbiterVerdict(

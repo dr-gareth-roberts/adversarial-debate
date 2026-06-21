@@ -28,17 +28,26 @@ def severity_gte(severity: str, threshold: str) -> bool:
 
 
 def compute_fingerprint(finding: dict[str, Any]) -> str:
-    """Compute a stable fingerprint for a finding."""
-    explicit = finding.get("fingerprint") or finding.get("id")
+    """Compute a stable content-based fingerprint for a finding.
+
+    Deliberately derived from stable content only. The LLM-supplied ``id`` is
+    NOT used (it varies run-to-run, which made baseline diffs churn unchanged
+    findings as both fixed and new). A pre-computed ``fingerprint`` we set
+    earlier is honoured. Free-text ``title`` and the often-drifting ``line`` are
+    avoided in favour of a normalized code snippet plus the vuln class, so the
+    same issue in unchanged code yields the same fingerprint across runs.
+    """
+    explicit = finding.get("fingerprint")
     if isinstance(explicit, str) and explicit.strip():
         return explicit.strip()
 
+    snippet = finding.get("code_snippet") or finding.get("snippet") or ""
+    normalized_snippet = " ".join(str(snippet).split())
     parts = [
         str(finding.get("finding_type", "")).strip(),
-        str(finding.get("agent", "")).strip(),
         str(finding.get("file_path", "")).strip(),
-        str(finding.get("line", "")).strip(),
-        str(finding.get("title", "")).strip(),
+        str(finding.get("cwe", "")).strip(),
+        normalized_snippet or str(finding.get("title", "")).strip(),
     ]
     raw = "\n".join(parts).encode("utf-8", errors="replace")
     return "fp-" + hashlib.sha256(raw).hexdigest()[:16]

@@ -391,8 +391,10 @@ class ChaosAgent(Agent):
             return None
 
         experiment_block = experiment.get("experiment", {})
-        if not experiment_block.get("rollback"):
-            return None
+        # A missing rollback no longer drops the experiment; keep it flagged for
+        # validation (so resilience gaps without a scripted rollback still
+        # surface) rather than silently discarding it.
+        needs_validation = not experiment_block.get("rollback")
 
         # Generate ID if not provided
         exp_id = experiment.get("id", f"CHAOS-{index + 1:03d}")
@@ -435,6 +437,7 @@ class ChaosAgent(Agent):
             "target_dependency": experiment.get("target_dependency", ""),
             "failure_mode": failure_mode,
             "severity_if_vulnerable": severity,
+            "needs_validation": needs_validation,
             "experiment": {
                 "description": experiment_block.get("description", ""),
                 "method": experiment_block.get("method", ""),

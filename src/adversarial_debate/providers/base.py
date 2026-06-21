@@ -36,7 +36,8 @@ class ProviderConfig:
     api_key: str | None = None
     base_url: str | None = None
     model: str | None = None
-    temperature: float = 0.7
+    # Deterministic by default — this is a security gate (see config.ProviderConfig).
+    temperature: float = 0.0
     max_tokens: int = 4096
     timeout: float = 120.0
     extra: dict[str, Any] = field(default_factory=dict)

@@ -36,7 +36,9 @@ class ProviderConfig:
     model: str = "claude-sonnet-4-20250514"
     timeout_seconds: int = 120
     max_retries: int = 3
-    temperature: float = 0.7
+    # Default to 0.0 (deterministic): this drives a security gate, so identical
+    # code should yield identical findings run-to-run.
+    temperature: float = 0.0
     max_tokens: int = 4096
     extra: dict[str, Any] = field(default_factory=dict)
 
@@ -314,7 +316,7 @@ class Config:
                 model=provider_data.get("model", "claude-sonnet-4-20250514"),
                 timeout_seconds=provider_data.get("timeout_seconds", 120),
                 max_retries=provider_data.get("max_retries", 3),
-                temperature=provider_data.get("temperature", 0.7),
+                temperature=provider_data.get("temperature", 0.0),
                 max_tokens=provider_data.get("max_tokens", 4096),
                 extra=dict(provider_data.get("extra", {})),
             ),
