@@ -414,12 +414,13 @@ class TestBeadIdGeneration:
         """Test that generated bead IDs have expected format."""
         bead_id = BeadStore.generate_bead_id()
         assert bead_id.startswith("B-")
-        # Format: B-YYYYMMDD-HHMMSS-NNNNNN
+        # Format: B-YYYYMMDD-HHMMSS-NNNNNN-XXXX (XXXX = random anti-collision suffix)
         parts = bead_id.split("-")
-        assert len(parts) == 4
+        assert len(parts) == 5
         assert len(parts[1]) == 8  # YYYYMMDD
         assert len(parts[2]) == 6  # HHMMSS
         assert len(parts[3]) == 6  # microseconds
+        assert len(parts[4]) == 4  # random suffix
 
     def test_generate_bead_id_unique(self) -> None:
         """Test that generated bead IDs are unique across calls."""

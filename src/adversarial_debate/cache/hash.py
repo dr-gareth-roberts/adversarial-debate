@@ -99,6 +99,7 @@ def hash_analysis_inputs(
     agent_name: str,
     focus_areas: list[str] | None = None,
     config_hash: str | None = None,
+    extra_inputs: dict[str, object] | None = None,
 ) -> str:
     """Hash analysis inputs to create a cache key.
 
@@ -107,6 +108,8 @@ def hash_analysis_inputs(
         agent_name: Name of the agent performing analysis
         focus_areas: Optional focus areas for the analysis
         config_hash: Optional hash of the configuration
+        extra_inputs: Optional extra inputs (e.g. attack plan hints) that
+            should invalidate the cache when they change.
 
     Returns:
         Hex digest cache key
@@ -131,5 +134,12 @@ def hash_analysis_inputs(
     # Include config hash if provided
     if config_hash:
         h.update(config_hash.encode("utf-8"))
+
+    # Include extra_inputs (deterministic JSON serialization)
+    if extra_inputs:
+        import json
+
+        extra_json = json.dumps(extra_inputs, sort_keys=True, default=str)
+        h.update(extra_json.encode("utf-8"))
 
     return h.hexdigest()

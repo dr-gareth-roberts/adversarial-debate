@@ -341,10 +341,6 @@ class BeadStore:
                 return bead
         return None
 
-    def get_bead(self, bead_id: str) -> Bead | None:
-        """Backwards-compatible alias for get_by_id()."""
-        return self.get_by_id(bead_id)
-
     def get_all(self) -> list[Bead]:
         """Get all beads in the ledger."""
         return list(self.iter_all())
@@ -381,13 +377,18 @@ class BeadStore:
     def generate_bead_id(prefix: str = "B") -> str:
         """Generate a unique bead ID.
 
-        Format: B-YYYYMMDD-HHMMSS-NNNNNN
+        Format: B-YYYYMMDD-HHMMSS-NNNNNN-XXXX
+        where XXXX is a random suffix to prevent collisions in high-frequency async operations.
         """
+        import secrets
+
         now = datetime.now(UTC)
         date_part = now.strftime("%Y%m%d-%H%M%S")
         # Add microseconds for uniqueness
         micro_part = f"{now.microsecond:06d}"
-        return f"{prefix}-{date_part}-{micro_part}"
+        # Add random suffix to prevent collisions in async operations
+        random_suffix = secrets.token_hex(2)
+        return f"{prefix}-{date_part}-{micro_part}-{random_suffix}"
 
     @staticmethod
     def now_iso() -> str:

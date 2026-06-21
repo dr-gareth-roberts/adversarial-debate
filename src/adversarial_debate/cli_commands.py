@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -81,15 +80,21 @@ async def cmd_analyze(args: argparse.Namespace, config: Config) -> int:
     # Create provider, bead store, and agent
     provider = _get_provider_from_config(config)
     bead_store = BeadStore(config.bead_ledger_path)
-    agent: Agent
-    if args.agent == "exploit":
-        agent = ExploitAgent(provider, bead_store)
-    elif args.agent == "break":
-        agent = BreakAgent(provider, bead_store)
-    elif args.agent == "crypto":
-        agent = CryptoAgent(provider, bead_store)
-    else:
-        agent = ChaosAgent(provider, bead_store)
+
+    agent_factories: dict[str, type[Agent]] = {
+        "exploit": ExploitAgent,
+        "break": BreakAgent,
+        "chaos": ChaosAgent,
+        "crypto": CryptoAgent,
+    }
+
+    agent_cls = agent_factories.get(args.agent)
+    if agent_cls is None:
+        raise ValueError(
+            f"Unknown agent: {args.agent}. Valid agents: {list(agent_factories.keys())}"
+        )
+
+    agent: Agent = agent_cls(provider, bead_store)
 
     # Create context
     from datetime import UTC, datetime
@@ -351,17 +356,7 @@ async def cmd_verdict(args: argparse.Namespace, config: Config) -> int:
 
 async def cmd_run(args: argparse.Namespace, config: Config) -> int:
     """Run the full pipeline."""
-    from .agents import (
-        Agent,
-        AgentContext,
-        AgentOutput,
-        Arbiter,
-        BreakAgent,
-        ChaosAgent,
-        ChaosOrchestrator,
-        CryptoAgent,
-        ExploitAgent,
-    )
+    from .services import PipelineConfig, PipelineService
     from .store import BeadStore
 
     target_path = Path(args.target)
@@ -369,395 +364,63 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         print_error(f"Target not found: {args.target}")
         return 1
 
-    # Collect files and patches
-    file_path = str(target_path)
-    code_parts: list[str] = []
-    files: list[str] = []
-    changed_files: list[dict[str, str]] = []
-    patches: dict[str, str] = {}
-
-    if args.files:
-        for fp in args.files:
-            p = Path(fp)
-            if not p.exists() or not p.is_file():
-                print_error(f"File not found: {fp}")
-                return 1
-            files.append(str(p))
-            text = _read_text_safe(p)
-            code_parts.append(f"# File: {p}\n{text}\n")
-            changed_files.append({"path": str(p), "change_type": "modified"})
-            patches[str(p)] = text[:2000]
-        code = "\n".join(code_parts)
-    elif target_path.is_file():
-        code = _read_text_safe(target_path)
-        files = [str(target_path)]
-        changed_files = [{"path": str(target_path), "change_type": "modified"}]
-        patches = {str(target_path): code[:2000]}
-    else:
-        for py_file in _iter_python_files(target_path, DEFAULT_IGNORE_PATTERNS):
-            rel_path = str(py_file.relative_to(target_path))
-            files.append(str(py_file))
-            text = _read_text_safe(py_file)
-            code_parts.append(f"# File: {py_file}\n{text}\n")
-            changed_files.append({"path": rel_path, "change_type": "modified"})
-            patches[rel_path] = text[:2000]
-        code = "\n".join(code_parts)
-
-    if not files:
-        print_error("No Python files found")
-        return 1
-
-    if not code.strip():
-        print_error("No code found to analyze")
-        return 1
-
     # Check dry run early (before provider creation which may fail without API key)
     if config.dry_run:
-        print(f"Would run orchestrator + 4 agents + verdict on {len(files)} file(s)")
+        # Count files for dry run message
+        if args.files:
+            file_count = len(args.files)
+        elif target_path.is_file():
+            file_count = 1
+        else:
+            file_count = len(list(_iter_python_files(target_path, DEFAULT_IGNORE_PATTERNS)))
+        print(f"Would run orchestrator + 4 agents + verdict on {file_count} file(s)")
         return 0
 
-    # Create provider, bead store, and agents
+    # Create provider and bead store
     provider = _get_provider_from_config(config)
     bead_store = BeadStore(config.bead_ledger_path)
-    orchestrator = ChaosOrchestrator(provider, bead_store)
-    exploit = ExploitAgent(provider, bead_store)
-    breaker = BreakAgent(provider, bead_store)
-    chaos = ChaosAgent(provider, bead_store)
-    crypto = CryptoAgent(provider, bead_store)
-    arbiter = Arbiter(provider, bead_store)
 
-    from datetime import UTC, datetime
-
-    timestamp = datetime.now(UTC)
-    run_id = f"cli-run-{timestamp.strftime('%Y%m%d%H%M%S')}"
-    run_dir = Path(config.output_dir) / f"run-{timestamp.strftime('%Y%m%d%H%M%S')}"
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    # Orchestrator
-    orchestrator_context = AgentContext(
-        run_id=run_id,
-        timestamp_iso=timestamp.isoformat(),
-        policy={},
-        thread_id=run_id,
-        task_id="plan",
-        inputs={
-            "changed_files": changed_files,
-            "patches": patches,
-            "exposure": "internal",
-            "time_budget_seconds": args.time_budget,
-        },
+    # Build pipeline configuration from CLI args
+    pipeline_config = PipelineConfig(
+        target=args.target,
+        files=args.files,
+        time_budget=args.time_budget,
+        parallel=args.parallel,
+        cache_enabled=getattr(args, "cache", False),
+        skip_debate=args.skip_debate,
+        skip_verdict=args.skip_verdict,
+        debate_max_findings=args.debate_max_findings,
+        baseline_file=args.baseline_file,
+        baseline_mode=args.baseline_mode,
+        fail_on=args.fail_on,
+        min_severity=args.min_severity,
+        config_path=args.config,
     )
 
-    try:
-        plan_output = await orchestrator.run(orchestrator_context)
-    except Exception as e:
-        logger.exception("ChaosOrchestrator failed")
-        print_error(f"Planning failed: {e}")
-        return 1
+    # Execute pipeline via service layer
+    service = PipelineService(config, provider, bead_store)
+    result = await service.execute(pipeline_config)
 
-    # Wire orchestrator plan hints into each agent execution context.
-    from .attack_plan import AgentType, AttackPlan
+    if not result.success:
+        print_error(result.error or "Pipeline execution failed")
+        return result.exit_code
 
-    hints_by_agent: dict[str, dict[str, Any]] = {
-        "exploit": {},
-        "break": {},
-        "chaos": {},
-        "crypto": {},
-    }
+    # Handle CLI-specific output (bundle writing, formatting, display)
+    bundle = result.bundle
+    run_dir = result.run_dir
 
-    plan_dict = plan_output.result.get("attack_plan")
-    if isinstance(plan_dict, dict):
-        try:
-            plan = AttackPlan.from_dict(plan_dict)
-        except Exception:
-            plan = None
-        if plan is not None:
-            for agent_key, agent_type in (
-                ("exploit", AgentType.EXPLOIT_AGENT),
-                ("break", AgentType.BREAK_AGENT),
-                ("chaos", AgentType.CHAOS_AGENT),
-                ("crypto", AgentType.CRYPTO_AGENT),
-            ):
-                attacks = plan.get_attacks_by_agent(agent_type)
-
-                attack_hints: list[str] = []
-                focus_areas: list[str] = []
-                payload_hints: list[str] = []
-                success_indicators: list[str] = []
-                hints: list[str] = []
-
-                for a in attacks:
-                    for v in a.attack_vectors:
-                        if v.name:
-                            attack_hints.append(v.name)
-                        if v.category:
-                            focus_areas.append(v.category)
-                        payload_hints.extend(v.payload_hints or [])
-                        success_indicators.extend(v.success_indicators or [])
-                    hints.extend(a.hints or [])
-
-                merged: dict[str, Any] = {}
-                if attack_hints:
-                    merged["attack_hints"] = sorted(set(attack_hints))
-                if focus_areas:
-                    merged["focus_areas"] = sorted(set(focus_areas))
-                if payload_hints:
-                    merged["payload_hints"] = payload_hints
-                if success_indicators:
-                    merged["success_indicators"] = success_indicators
-                if hints:
-                    merged["hints"] = hints
-                hints_by_agent[agent_key] = merged
-
-    # Agent analyses (parallel)
-    base_analysis_inputs = {
-        "code": code,
-        "file_path": file_path,
-        "file_paths": files,
-    }
-
-    # Optional incremental cache (opt-in via --cache). Keyed on the combined
-    # target code + agent name, so it serves unchanged re-runs of the same
-    # target and self-invalidates when any analysed file changes. Disabled by
-    # default because a cache hit skips the agent (and its bead-ledger entries).
-    from .cache import CacheManager
-
-    cache = CacheManager(cache_dir=config.cache_dir, enabled=getattr(args, "cache", False))
-
-    async def run_agent(agent: Agent, task_id: str, extra_inputs: dict[str, Any]) -> AgentOutput:
-        cached = cache.get_cached(code, agent.name)
-        if cached is not None:
-            logger.info("Cache hit for %s; skipping analysis", agent.name)
-            confidence = cached.get("confidence")
-            return AgentOutput(
-                agent_name=agent.name,
-                result=cached,
-                beads_out=[],
-                confidence=float(confidence) if isinstance(confidence, int | float) else 1.0,
-            )
-
-        analysis_inputs = dict(base_analysis_inputs)
-        analysis_inputs.update(extra_inputs)
-        context = AgentContext(
-            run_id=run_id,
-            timestamp_iso=timestamp.isoformat(),
-            policy={},
-            thread_id=run_id,
-            task_id=task_id,
-            inputs=analysis_inputs,
-        )
-        output = await agent.run(context)
-        cache.cache_result(code, agent.name, file_path, output.result)
-        return output
-
-    sem = asyncio.Semaphore(max(1, args.parallel))
-
-    async def with_limit(agent: Agent, task_id: str, extra_inputs: dict[str, Any]) -> AgentOutput:
-        async with sem:
-            return await run_agent(agent, task_id, extra_inputs)
-
-    try:
-        exploit_output, break_output, chaos_output, crypto_output = await asyncio.gather(
-            with_limit(exploit, "exploit", hints_by_agent.get("exploit", {})),
-            with_limit(breaker, "break", hints_by_agent.get("break", {})),
-            with_limit(chaos, "chaos", hints_by_agent.get("chaos", {})),
-            with_limit(crypto, "crypto", hints_by_agent.get("crypto", {})),
-        )
-    except Exception as e:
-        logger.exception("Agent execution failed")
-        print_error(f"Analysis failed: {e}")
-        return 1
-
-    # Combine findings for the arbiter
-    combined_findings = []
-    combined_findings.extend(exploit_output.result.get("findings", []))
-    combined_findings.extend(break_output.result.get("findings", []))
-    for f in crypto_output.result.get("findings", []):
-        crypto_finding = dict(f) if isinstance(f, dict) else {"raw": f}
-        crypto_finding.setdefault("agent", "CryptoAgent")
-        crypto_finding.setdefault("finding_type", "crypto")
-        combined_findings.append(crypto_finding)
-    for experiment in chaos_output.result.get("experiments", []):
-        chaos_finding = dict(experiment)
-        chaos_finding["agent"] = "ChaosAgent"
-        chaos_finding["finding_type"] = "chaos_experiment"
-        combined_findings.append(chaos_finding)
-
-    # Persist artifacts
-    attack_plan_path = run_dir / "attack_plan.json"
-    exploit_path = run_dir / "exploit_findings.json"
-    break_path = run_dir / "break_findings.json"
-    chaos_path = run_dir / "chaos_findings.json"
-    crypto_path = run_dir / "crypto_findings.json"
-    combined_path = run_dir / "findings.json"
-
-    with open(attack_plan_path, "w") as f:
-        json.dump(plan_output.result, f, indent=2, default=str)
-    with open(exploit_path, "w") as f:
-        json.dump(exploit_output.result, f, indent=2, default=str)
-    with open(break_path, "w") as f:
-        json.dump(break_output.result, f, indent=2, default=str)
-    with open(chaos_path, "w") as f:
-        json.dump(chaos_output.result, f, indent=2, default=str)
-    with open(crypto_path, "w") as f:
-        json.dump(crypto_output.result, f, indent=2, default=str)
-    with open(combined_path, "w") as f:
-        json.dump(combined_findings, f, indent=2, default=str)
-
-    # Cross-examination debate step (ferocious peer review between agents)
-    debated_findings = None
-    debate_output = None
-    if not args.skip_debate and not args.skip_verdict:
-        from .agents import CrossExaminationAgent
-        from .results import BundleInputs, build_results_bundle
-
-        pre_bundle = build_results_bundle(
-            inputs=BundleInputs(
-                run_id=run_id,
-                target=args.target,
-                provider=config.provider.provider,
-                started_at_iso=timestamp.isoformat(),
-                finished_at_iso=timestamp.isoformat(),
-                files_analyzed=files,
-                time_budget_seconds=args.time_budget,
-                config_path=args.config,
-            ),
-            exploit_result=exploit_output.result,
-            break_result=break_output.result,
-            chaos_result=chaos_output.result,
-            crypto_result=crypto_output.result,
-            arbiter_result=None,
-        )
-
-        debater = CrossExaminationAgent(provider, bead_store)
-        debate_context = AgentContext(
-            run_id=run_id,
-            timestamp_iso=timestamp.isoformat(),
-            policy={},
-            thread_id=run_id,
-            task_id="cross-examination",
-            inputs={
-                "findings": pre_bundle.get("findings", []),
-                "code_excerpt": base_analysis_inputs.get("code", "")[:20000],
-                "max_findings": args.debate_max_findings,
-            },
-        )
-        try:
-            debate_output = await debater.run(debate_context)
-            debated_findings = debate_output.result.get("findings", None)
-            if isinstance(debated_findings, list):
-                from .baseline import compute_fingerprint
-
-                for f in debated_findings:
-                    if isinstance(f, dict) and not f.get("fingerprint"):
-                        f["fingerprint"] = compute_fingerprint(f)
-            debated_path = run_dir / "findings.debated.json"
-            with open(debated_path, "w") as f:
-                json.dump(debated_findings, f, indent=2, default=str)
-        except Exception as e:
-            logger.exception("CrossExaminationAgent failed")
-            print_error(f"Cross-examination failed (continuing): {e}")
-
-    verdict_output = None
-    if not args.skip_verdict:
-        arbiter_context = AgentContext(
-            run_id=run_id,
-            timestamp_iso=timestamp.isoformat(),
-            policy={},
-            thread_id=run_id,
-            task_id="verdict",
-            inputs={
-                "findings": debated_findings if debated_findings is not None else combined_findings,
-                "original_task": f"CLI run on {args.target}",
-                "changed_files": changed_files,
-            },
-        )
-        try:
-            verdict_output = await arbiter.run(arbiter_context)
-        except Exception as e:
-            logger.exception("Arbiter failed")
-            print_error(f"Verdict failed: {e}")
-            return 1
-
-        verdict_path = run_dir / "verdict.json"
-        with open(verdict_path, "w") as f:
-            json.dump(verdict_output.result, f, indent=2, default=str)
-
-    # Build canonical bundle + optional formatted report
-    finished_at = datetime.now(UTC).isoformat()
-    from .results import BundleInputs, build_results_bundle
-
-    bundle = build_results_bundle(
-        inputs=BundleInputs(
-            run_id=run_id,
-            target=args.target,
-            provider=config.provider.provider,
-            started_at_iso=timestamp.isoformat(),
-            finished_at_iso=finished_at,
-            files_analyzed=files,
-            time_budget_seconds=args.time_budget,
-            config_path=args.config,
-        ),
-        exploit_result=exploit_output.result,
-        break_result=break_output.result,
-        chaos_result=chaos_output.result,
-        crypto_result=crypto_output.result,
-        arbiter_result=verdict_output.result if verdict_output else None,
-    )
-
-    if debate_output and debated_findings is not None:
-        # Prefer debated findings in the canonical bundle and recompute counts.
-        bundle["findings"] = debated_findings
-        bundle_metadata = bundle.get("metadata", {})
-        severity_counts: dict[str, int] = {}
-        for f in debated_findings:
-            sev = str((f or {}).get("severity", "UNKNOWN")).upper()
-            severity_counts[sev] = severity_counts.get(sev, 0) + 1
-        bundle_metadata["finding_counts"] = {
-            "total": len(debated_findings),
-            "by_severity": severity_counts,
-        }
-        bundle_metadata["cross_examination"] = debate_output.result.get("summary", {})
-        bundle["metadata"] = bundle_metadata
-
-    # Optional baseline diff (for PR workflows: fail only on NEW findings)
-    baseline_diff: dict[str, Any] | None = None
-    baseline_exit_code: int | None = None
-    if args.baseline_file and args.baseline_mode != "off":
-        try:
-            baseline_bundle = json.loads(Path(args.baseline_file).read_text())
-            from .baseline import diff_bundles, severity_gte
-
-            diff = diff_bundles(bundle, baseline_bundle)
-            baseline_diff = diff.to_dict()
-            bundle["baseline"] = {
-                "mode": args.baseline_mode,
-                "baseline_file": args.baseline_file,
-                **baseline_diff,
-            }
-
-            if args.baseline_mode == "only-new" and args.fail_on != "never":
-                threshold = str(args.min_severity).upper()
-                regressions = [
-                    f
-                    for f in diff.new
-                    if severity_gte(str(f.get("severity", "UNKNOWN")), threshold)
-                ]
-                if regressions:
-                    # Mirror existing convention: 2 means "block".
-                    baseline_exit_code = 2
-        except Exception as e:
-            print_error(f"Failed to apply baseline comparison: {e}")
-
+    # Write bundle to disk
     bundle_path = Path(args.bundle_file) if args.bundle_file else (run_dir / "bundle.json")
     bundle_path.parent.mkdir(parents=True, exist_ok=True)
     bundle_path.write_text(json.dumps(bundle, indent=2, default=str))
 
+    # Handle baseline write
     if args.baseline_write:
         baseline_out = Path(args.baseline_write)
         baseline_out.parent.mkdir(parents=True, exist_ok=True)
         baseline_out.write_text(json.dumps(bundle, indent=2, default=str))
 
+    # Generate formatted report if requested
     report_path: Path | None = None
     if args.report_file:
         from .formatters import FormatterConfig, get_formatter
@@ -783,11 +446,13 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(formatter.format(bundle))
 
+    # Early exit for baseline write
     if args.baseline_write:
         if not args.json_output:
             print(f"Baseline written: {args.baseline_write}")
         return 0
 
+    # Display results
     if args.json_output:
         print_json(bundle)
     else:
@@ -798,37 +463,29 @@ async def cmd_run(args: argparse.Namespace, config: Config) -> int:
         print(f"Bundle: {bundle_path}")
         if report_path:
             print(f"Report: {report_path}")
-        print(f"Attack Plan: {attack_plan_path}")
-        print(f"Exploit Findings: {exploit_path}")
-        print(f"Break Findings: {break_path}")
-        print(f"Chaos Findings: {chaos_path}")
-        print(f"Combined Findings: {combined_path}")
-        if verdict_output:
-            verdict_summary = verdict_output.result.get("summary", {})
+        print(f"Attack Plan: {run_dir / 'attack_plan.json'}")
+        print(f"Exploit Findings: {run_dir / 'exploit_findings.json'}")
+        print(f"Break Findings: {run_dir / 'break_findings.json'}")
+        print(f"Chaos Findings: {run_dir / 'chaos_findings.json'}")
+        print(f"Combined Findings: {run_dir / 'findings.json'}")
+
+        # Display verdict summary if available
+        verdict_data = bundle.get("verdict")
+        if verdict_data:
+            verdict_summary = verdict_data.get("summary", {})
             print(f"\nVERDICT: {verdict_summary.get('decision', 'UNKNOWN')}")
             print(f"Blocking Issues: {verdict_summary.get('blocking_issues', 0)}")
             print(f"Warnings: {verdict_summary.get('warnings', 0)}")
             print(f"Passed: {verdict_summary.get('passed', 0)}")
             print(f"False Positives: {verdict_summary.get('false_positives', 0)}")
-        if baseline_diff:
+
+        # Display baseline diff if available
+        if result.baseline_diff:
             print("\nBASELINE DIFF")
-            print(f"New: {baseline_diff.get('new_count', 0)}")
-            print(f"Fixed: {baseline_diff.get('fixed_count', 0)}")
+            print(f"New: {result.baseline_diff.get('new_count', 0)}")
+            print(f"Fixed: {result.baseline_diff.get('fixed_count', 0)}")
 
-    if baseline_exit_code is not None:
-        return baseline_exit_code
-
-    if args.fail_on != "never" and verdict_output:
-        verdict_summary = verdict_output.result.get("summary", {})
-        decision = verdict_summary.get("decision")
-        should_block = verdict_summary.get("should_block", False)
-
-        if should_block:
-            return 2
-        if args.fail_on == "warn" and decision in {"WARN", "BLOCK"}:
-            return 1
-
-    return 0
+    return result.exit_code
 
 
 async def cmd_watch(args: argparse.Namespace, config: Config) -> int:
@@ -854,19 +511,25 @@ async def cmd_watch(args: argparse.Namespace, config: Config) -> int:
         # Create a temporary args for analyze
         json_output_flag = bool(getattr(args, "json_output", False))
 
+        # Determine which agents to run
+        agents_to_run = (
+            ["exploit", "break", "chaos", "crypto"] if args.agent == "all" else [args.agent]
+        )
+
         for path in changed_paths[:5]:  # Limit to first 5 for performance
-            analyze_args = argparse.Namespace(
-                agent=args.agent if args.agent != "all" else "exploit",
-                target=str(path),
-                focus=None,
-                timeout=60,
-                json_output=json_output_flag,
-                output=None,
-            )
-            try:
-                await cmd_analyze(analyze_args, config)
-            except Exception as e:
-                print_error(f"Analysis failed for {path}: {e}")
+            for agent_name in agents_to_run:
+                analyze_args = argparse.Namespace(
+                    agent=agent_name,
+                    target=str(path),
+                    focus=None,
+                    timeout=60,
+                    json_output=json_output_flag,
+                    output=None,
+                )
+                try:
+                    await cmd_analyze(analyze_args, config)
+                except Exception as e:
+                    print_error(f"Analysis failed for {path} ({agent_name}): {e}")
 
     runner = WatchRunner([target_path], analyze_files, watch_config)
     await runner.run()

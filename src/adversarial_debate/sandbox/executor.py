@@ -502,13 +502,17 @@ class SandboxExecutor:
         Returns:
             ExecutionResult indicating if exploit succeeded
         """
+        # Indent every line of the exploit so the whole block sits under the
+        # `try:`. A bare f-string interpolation only indents the first line,
+        # which produces a SyntaxError for multi-line exploits.
+        indented_exploit = textwrap.indent(textwrap.dedent(exploit_code).strip(), "    ")
         combined_code = f"""
 # Target code
 {target_code}
 
 # Exploit
 try:
-    {exploit_code}
+{indented_exploit}
     print("EXPLOIT_SUCCESS")
 except Exception as e:
     print(f"EXPLOIT_FAILED: {{e}}")

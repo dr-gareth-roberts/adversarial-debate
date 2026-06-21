@@ -431,7 +431,7 @@ class Arbiter(Agent):
             artefacts=[],
             confidence=data.get("confidence", 0.8),
             assumptions=data.get("assumptions", []),
-            unknowns=data.get("limitations", []),
+            unknowns=limitations,
         )
 
         return AgentOutput(
@@ -452,7 +452,7 @@ class Arbiter(Agent):
             beads_out=[bead],
             confidence=data.get("confidence", 0.8),
             assumptions=data.get("assumptions", []),
-            unknowns=data.get("limitations", []),
+            unknowns=limitations,
         )
 
     def _parse_decision(self, decision: str) -> VerdictDecision:
@@ -599,90 +599,3 @@ class Arbiter(Agent):
     def _generate_idempotency_key(self, context: AgentContext) -> str:
         """Generate idempotency key for verdict."""
         return f"IK-verdict-{context.thread_id}-{context.task_id}"
-
-    # =========================================================================
-    # UTILITY METHODS FOR VERDICT HANDLING
-    # =========================================================================
-
-    @staticmethod
-    def should_auto_block(verdict: ArbiterVerdict) -> bool:
-        """Check if verdict should automatically block based on severity.
-
-        Auto-block conditions:
-        - Any CRITICAL severity blocking issue with TRIVIAL exploitation
-        - Multiple HIGH severity blocking issues
-        - Any finding with data_at_risk containing credentials/PII
-        """
-        for issue in verdict.blocking_issues:
-            # Critical + Easy to exploit = auto block
-            if issue.validated_severity == "CRITICAL" and issue.exploitation_difficulty in (
-                ExploitationDifficulty.TRIVIAL,
-                ExploitationDifficulty.EASY,
-            ):
-                return True
-
-            # Sensitive data at risk
-            sensitive_keywords = ["password", "credential", "token", "pii", "ssn", "credit"]
-            for data in issue.data_at_risk:
-                if any(kw in data.lower() for kw in sensitive_keywords):
-                    return True
-
-        # Multiple high severity issues
-        high_count = sum(1 for i in verdict.blocking_issues if i.validated_severity == "HIGH")
-        return high_count >= 3
-
-    @staticmethod
-    def create_ticket_summary(verdict: ArbiterVerdict) -> str:
-        """Create a summary suitable for a tracking ticket."""
-        lines = [
-            f"## Security Review: {verdict.decision.value}",
-            "",
-            verdict.summary,
-            "",
-            "### Findings Summary",
-            f"- Blocking: {len(verdict.blocking_issues)}",
-            f"- Warnings: {len(verdict.warnings)}",
-            f"- False Positives: {len(verdict.false_positives)}",
-            "",
-        ]
-
-        if verdict.blocking_issues:
-            lines.append("### Must Fix")
-            for issue in verdict.blocking_issues:
-                lines.append(f"- [ ] **{issue.original_id}**: {issue.original_title}")
-                lines.append(f"  - Severity: {issue.validated_severity}")
-                lines.append(f"  - Effort: {issue.remediation_effort.value}")
-            lines.append("")
-
-        if verdict.warnings:
-            lines.append("### Should Fix")
-            for issue in verdict.warnings:
-                lines.append(f"- [ ] **{issue.original_id}**: {issue.original_title}")
-            lines.append("")
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def get_priority_sorted_issues(
-        verdict: ArbiterVerdict,
-    ) -> list[ValidatedFinding]:
-        """Get all issues sorted by priority (exploitation difficulty + severity)."""
-        all_issues = verdict.blocking_issues + verdict.warnings
-
-        # Sort by: severity (CRITICAL first), then exploitation difficulty (TRIVIAL first)
-        severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
-        difficulty_order = {
-            ExploitationDifficulty.TRIVIAL: 0,
-            ExploitationDifficulty.EASY: 1,
-            ExploitationDifficulty.MODERATE: 2,
-            ExploitationDifficulty.DIFFICULT: 3,
-            ExploitationDifficulty.THEORETICAL: 4,
-        }
-
-        return sorted(
-            all_issues,
-            key=lambda i: (
-                severity_order.get(i.validated_severity, 99),
-                difficulty_order.get(i.exploitation_difficulty, 99),
-            ),
-        )
