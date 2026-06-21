@@ -427,19 +427,37 @@ class PipelineService:
             async with sem:
                 return await run_agent(agent, task_id, extra_inputs)
 
-        exploit_output, break_output, chaos_output, crypto_output = await asyncio.gather(
-            with_limit(exploit, "exploit", hints_by_agent.get("exploit", {})),
-            with_limit(breaker, "break", hints_by_agent.get("break", {})),
-            with_limit(chaos, "chaos", hints_by_agent.get("chaos", {})),
-            with_limit(crypto, "crypto", hints_by_agent.get("crypto", {})),
+        # return_exceptions=True so a single agent failure (rate limit, parse
+        # error, timeout) does not discard the other three agents' findings.
+        # A failed agent is replaced by an empty sentinel output carrying the
+        # error, so the rest of the pipeline still produces a partial result.
+        specs = [
+            (exploit, "exploit"),
+            (breaker, "break"),
+            (chaos, "chaos"),
+            (crypto, "crypto"),
+        ]
+        results = await asyncio.gather(
+            *(with_limit(agent, key, hints_by_agent.get(key, {})) for agent, key in specs),
+            return_exceptions=True,
         )
 
-        return {
-            "exploit": exploit_output,
-            "break": break_output,
-            "chaos": chaos_output,
-            "crypto": crypto_output,
-        }
+        agent_outputs: dict[str, AgentOutput] = {}
+        for (agent, key), result in zip(specs, results, strict=True):
+            if isinstance(result, BaseException):
+                logger.error(
+                    "Agent %s failed; continuing with partial results: %s", agent.name, result
+                )
+                agent_outputs[key] = AgentOutput(
+                    agent_name=agent.name,
+                    result={},
+                    beads_out=[],
+                    confidence=0.0,
+                    errors=[f"{type(result).__name__}: {result}"],
+                )
+            else:
+                agent_outputs[key] = result
+        return agent_outputs
 
     def _combine_findings(self, agent_outputs: dict[str, AgentOutput]) -> list[dict[str, Any]]:
         """Combine findings from all agents and add fingerprints."""

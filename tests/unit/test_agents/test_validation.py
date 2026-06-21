@@ -29,7 +29,9 @@ def _make_context(inputs: dict[str, object]) -> AgentContext:
 
 
 @pytest.mark.anyio
-async def test_exploit_agent_requires_payload(bead_store, mock_provider_factory) -> None:
+async def test_exploit_agent_keeps_payloadless_finding_flagged(
+    bead_store, mock_provider_factory
+) -> None:
     response = json.dumps(
         {
             "target": {"file_path": "app.py", "function_name": "handler", "exposure": "public"},
@@ -59,9 +61,14 @@ async def test_exploit_agent_requires_payload(bead_store, mock_provider_factory)
 
     output = await agent.run(context)
 
+    # Both findings are kept; the payload-less one is flagged for validation
+    # with reduced confidence rather than silently dropped.
     findings = output.result.get("findings", [])
-    assert len(findings) == 1
-    assert findings[0]["id"] == "EXPLOIT-002"
+    by_id = {f["id"]: f for f in findings}
+    assert set(by_id) == {"EXPLOIT-001", "EXPLOIT-002"}
+    assert by_id["EXPLOIT-001"]["needs_validation"] is True
+    assert by_id["EXPLOIT-001"]["confidence"] <= 0.5
+    assert by_id["EXPLOIT-002"]["needs_validation"] is False
 
 
 @pytest.mark.anyio
@@ -119,7 +126,9 @@ async def test_exploit_agent_includes_attack_plan_hints_in_prompt(
 
 
 @pytest.mark.anyio
-async def test_crypto_agent_requires_evidence_snippet(bead_store, mock_provider_factory) -> None:
+async def test_crypto_agent_keeps_snippetless_finding_flagged(
+    bead_store, mock_provider_factory
+) -> None:
     response = json.dumps(
         {
             "target": {"file_path": "app.py", "function_name": "handler", "exposure": "public"},
@@ -149,8 +158,11 @@ async def test_crypto_agent_requires_evidence_snippet(bead_store, mock_provider_
     output = await agent.run(context)
 
     findings = output.result.get("findings", [])
-    assert len(findings) == 1
-    assert findings[0]["id"] == "CRYPTO-002"
+    by_id = {f["id"]: f for f in findings}
+    assert set(by_id) == {"CRYPTO-001", "CRYPTO-002"}
+    assert by_id["CRYPTO-001"]["needs_validation"] is True
+    assert by_id["CRYPTO-001"]["confidence"] <= 0.5
+    assert by_id["CRYPTO-002"]["needs_validation"] is False
 
 
 @pytest.mark.anyio
@@ -202,7 +214,7 @@ async def test_crypto_agent_includes_attack_plan_hints_in_prompt(
 
 
 @pytest.mark.anyio
-async def test_break_agent_requires_poc_code(bead_store, mock_provider_factory) -> None:
+async def test_break_agent_keeps_pocless_finding_flagged(bead_store, mock_provider_factory) -> None:
     response = json.dumps(
         {
             "target": {"file_path": "app.py", "function_name": "handler"},
@@ -234,12 +246,17 @@ async def test_break_agent_requires_poc_code(bead_store, mock_provider_factory) 
     output = await agent.run(context)
 
     findings = output.result.get("findings", [])
-    assert len(findings) == 1
-    assert findings[0]["id"] == "BREAK-002"
+    by_id = {f["id"]: f for f in findings}
+    assert set(by_id) == {"BREAK-001", "BREAK-002"}
+    assert by_id["BREAK-001"]["needs_validation"] is True
+    assert by_id["BREAK-001"]["confidence"] <= 0.5
+    assert by_id["BREAK-002"]["needs_validation"] is False
 
 
 @pytest.mark.anyio
-async def test_chaos_agent_requires_rollback(bead_store, mock_provider_factory) -> None:
+async def test_chaos_agent_keeps_rollbackless_experiment_flagged(
+    bead_store, mock_provider_factory
+) -> None:
     response = json.dumps(
         {
             "target": {"file_path": "app.py", "function_name": "handler"},
@@ -276,8 +293,10 @@ async def test_chaos_agent_requires_rollback(bead_store, mock_provider_factory) 
     output = await agent.run(context)
 
     experiments = output.result.get("experiments", [])
-    assert len(experiments) == 1
-    assert experiments[0]["id"] == "CHAOS-002"
+    by_id = {e["id"]: e for e in experiments}
+    assert set(by_id) == {"CHAOS-001", "CHAOS-002"}
+    assert by_id["CHAOS-001"]["needs_validation"] is True
+    assert by_id["CHAOS-002"]["needs_validation"] is False
 
 
 @pytest.mark.anyio

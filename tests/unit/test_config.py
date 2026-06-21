@@ -25,7 +25,7 @@ class TestProviderConfig:
         assert config.provider == "anthropic"
         assert config.timeout_seconds == 120
         assert config.max_retries == 3
-        assert config.temperature == 0.7
+        assert config.temperature == 0.0  # deterministic default for a security gate
 
     def test_api_key_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test API key loaded from environment."""

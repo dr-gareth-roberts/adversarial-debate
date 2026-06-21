@@ -34,7 +34,7 @@ class TestProviderConfig:
         assert config.api_key is None
         assert config.base_url is None
         assert config.model is None
-        assert config.temperature == 0.7
+        assert config.temperature == 0.0  # deterministic default for a security gate
         assert config.max_tokens == 4096
         assert config.timeout == 120.0
         assert config.extra == {}

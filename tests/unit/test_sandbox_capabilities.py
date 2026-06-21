@@ -60,12 +60,20 @@ class TestExecutePythonBackends:
         assert result.success is False
         assert "Security validation failed" in result.error
 
-    async def test_docker_unavailable_falls_back_to_subprocess(
+    async def test_docker_unavailable_fails_closed_then_opt_in(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        executor = SandboxExecutor(SandboxConfig(use_docker=True, use_subprocess=True))
-        # Force the Docker probe to report unavailable so execution falls back.
+        # Docker requested but unavailable: fail closed by default (do not run
+        # untrusted code unsandboxed)...
+        cfg = SandboxConfig(use_docker=True, use_subprocess=True)
+        executor = SandboxExecutor(cfg)
         monkeypatch.setattr(executor, "is_docker_available", lambda: False)
+        blocked = await executor.execute_python("print('FELL_BACK')")
+        assert blocked.success is False
+        assert "Docker" in blocked.error and "unavailable" in blocked.error
+
+        # ...unless the caller explicitly opts into the unsafe subprocess fallback.
+        cfg.allow_unsafe_subprocess = True
         result = await executor.execute_python("print('FELL_BACK')")
         assert result.success is True
         assert "FELL_BACK" in result.output

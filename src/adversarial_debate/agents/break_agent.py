@@ -396,8 +396,10 @@ class BreakAgent(Agent):
             return None
 
         proof = finding.get("proof_of_concept", {})
-        if not proof.get("code"):
-            return None
+        # A missing PoC no longer drops the finding (logic bugs are often
+        # describable without runnable code); keep it flagged for validation
+        # with reduced confidence instead of silently discarding it.
+        needs_validation = not proof.get("code")
 
         # Generate ID if not provided
         finding_id = finding.get("id", f"BREAK-{index + 1:03d}")
@@ -413,12 +415,17 @@ class BreakAgent(Agent):
         if category not in valid_categories:
             category = "boundary"
 
+        confidence = finding.get("confidence", 0.8)
+        if needs_validation:
+            confidence = min(confidence, 0.5)
+
         return {
             "id": finding_id,
             "title": finding.get("title", ""),
             "severity": severity,
             "category": category,
-            "confidence": finding.get("confidence", 0.8),
+            "confidence": confidence,
+            "needs_validation": needs_validation,
             "description": finding.get("description", ""),
             "attack_vector": finding.get("attack_vector", ""),
             "proof_of_concept": proof,

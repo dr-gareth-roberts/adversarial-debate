@@ -15,6 +15,7 @@ Security hardening applied:
 import asyncio
 import contextlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -27,6 +28,10 @@ from pathlib import Path
 from typing import Any
 
 from ..exceptions import SandboxSecurityError
+
+# Use stdlib logging here (not ..logging.get_logger) to avoid a config->sandbox
+# ->logging->config import cycle; __name__ is already correctly namespaced.
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "ExecutionResult",
@@ -358,6 +363,11 @@ class SandboxConfig:
     use_subprocess: bool = True
     subprocess_timeout: int = 10
 
+    # Safety: if Docker is requested (use_docker=True) but unavailable, refuse to
+    # silently fall back to the weakly-isolated subprocess backend for untrusted
+    # code. Set True to explicitly opt into the unsafe fallback.
+    allow_unsafe_subprocess: bool = False
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "memory_limit": self.memory_limit,
@@ -471,14 +481,37 @@ class SandboxExecutor:
 
         if self.config.use_docker and self.is_docker_available():
             return await self._execute_docker_python(code, timeout, inputs)
-        elif self.config.use_subprocess:
-            return await self._execute_subprocess_python(code, timeout, inputs)
-        else:
+
+        # Docker was requested but is unavailable. Do NOT silently run untrusted
+        # code in the weakly-isolated subprocess backend — fail closed unless the
+        # caller has explicitly opted into the unsafe fallback.
+        if self.config.use_docker and not self.config.allow_unsafe_subprocess:
             return ExecutionResult(
                 success=False,
                 output="",
-                error="No execution backend available",
+                error=(
+                    "Docker sandbox requested but Docker is unavailable. Refusing to "
+                    "execute untrusted code in the unisolated subprocess backend. "
+                    "Start Docker, set use_docker=False to deliberately use the "
+                    "subprocess backend, or set allow_unsafe_subprocess=True to opt in."
+                ),
             )
+
+        if self.config.use_docker and self.config.allow_unsafe_subprocess:
+            logger.warning(
+                "Docker unavailable; falling back to the UNISOLATED subprocess backend "
+                "(allow_unsafe_subprocess=True). Untrusted code runs on the host."
+            )
+            return await self._execute_subprocess_python(code, timeout, inputs)
+
+        if self.config.use_subprocess:
+            return await self._execute_subprocess_python(code, timeout, inputs)
+
+        return ExecutionResult(
+            success=False,
+            output="",
+            error="No execution backend available",
+        )
 
     async def execute_exploit(
         self,

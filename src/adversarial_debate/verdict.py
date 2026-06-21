@@ -246,9 +246,14 @@ class ArbiterVerdict:
         if self.decision == VerdictDecision.BLOCK or len(self.blocking_issues) > 0:
             return True
 
-        # Auto-block conditions
-        for issue in self.blocking_issues:
-            # Critical + Easy to exploit = auto block
+        # Auto-escalation: evaluate the findings the arbiter did NOT mark as
+        # blocking (warnings) against severity/exploitability heuristics, so a
+        # genuinely critical issue the LLM under-classified as a warning still
+        # forces a block. Previously this loop iterated self.blocking_issues,
+        # which is always empty at this point (early return above) — dead code.
+        sensitive_keywords = ["password", "credential", "token", "pii", "ssn", "credit"]
+        for issue in self.warnings:
+            # Critical + trivially/easily exploitable = auto block
             if issue.validated_severity == "CRITICAL" and issue.exploitation_difficulty in (
                 ExploitationDifficulty.TRIVIAL,
                 ExploitationDifficulty.EASY,
@@ -256,13 +261,12 @@ class ArbiterVerdict:
                 return True
 
             # Sensitive data at risk
-            sensitive_keywords = ["password", "credential", "token", "pii", "ssn", "credit"]
             for data in issue.data_at_risk:
                 if any(kw in data.lower() for kw in sensitive_keywords):
                     return True
 
-        # Multiple high severity issues
-        high_count = sum(1 for i in self.blocking_issues if i.validated_severity == "HIGH")
+        # Multiple high-severity warnings
+        high_count = sum(1 for i in self.warnings if i.validated_severity == "HIGH")
         return high_count >= 3
 
     def to_dict(self) -> dict[str, Any]:

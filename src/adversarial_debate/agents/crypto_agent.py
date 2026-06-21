@@ -243,13 +243,25 @@ class CryptoAgent(Agent):
             return None
 
         evidence = finding.get("evidence") or {}
-        if not isinstance(evidence, dict) or not evidence.get("snippet"):
-            return None
+        if not isinstance(evidence, dict):
+            evidence = {}
+        # A missing evidence snippet no longer drops the finding (e.g. weak
+        # algorithm choice, missing encryption); keep it flagged for validation
+        # with reduced confidence instead of silently discarding it.
+        needs_validation = not evidence.get("snippet")
 
         fid = finding.get("id") or f"CRYPTO-{index + 1:03d}"
 
         normalized = dict(finding)
         normalized["id"] = fid
+        normalized["evidence"] = evidence
+        normalized["needs_validation"] = needs_validation
+        if needs_validation:
+            existing_conf = normalized.get("confidence", 0.8)
+            try:
+                normalized["confidence"] = min(float(existing_conf), 0.5)
+            except (TypeError, ValueError):
+                normalized["confidence"] = 0.5
 
         target = normalized.get("target")
         if not isinstance(target, dict):
